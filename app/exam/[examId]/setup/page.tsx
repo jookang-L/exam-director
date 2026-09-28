@@ -11,24 +11,36 @@ import type { PeriodTime } from "@/lib/types";
 export default function SetupPage() {
   const exam = useExam();
   const m = useExamMutators();
+  const [firstStart, setFirstStart] = React.useState("09:00");
+  const [examMinutes, setExamMinutes] = React.useState(50);
+  const [breakMinutes, setBreakMinutes] = React.useState(20);
+  const seeded = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!exam || seeded.current) return;
+    seeded.current = true;
+    const inferred = inferPeriodSchedule(exam.periodTimes);
+    setFirstStart(inferred.firstStart);
+    setExamMinutes(inferred.examMinutes);
+    setBreakMinutes(inferred.breakMinutes);
+  }, [exam]);
+
+  const applyGeneratedTimes = (
+    count: number,
+    start: string,
+    examMin: number,
+    breakMin: number,
+  ) => {
+    const safe = clampPeriodCount(count);
+    const times = buildPeriodTimes(safe, start, examMin, breakMin);
+    if (!times) {
+      m.setPeriodCount(safe);
+      return;
+    }
+    m.patchExam({ periodCount: safe, periodTimes: times });
+  };
 
   if (!exam) return null;
-
-  const setPeriodCount = (n: number) => {
-    const safe = Math.max(1, Math.min(10, n));
-    m.setPeriodCount(safe);
-    // sync periodTimes length
-    const cur = exam.periodTimes ?? [];
-    if (cur.length < safe) {
-      const add: PeriodTime[] = [];
-      for (let i = cur.length + 1; i <= safe; i++) {
-        add.push({ period: i, start: "", end: "" });
-      }
-      m.setPeriodTimes([...cur, ...add]);
-    } else if (cur.length > safe) {
-      m.setPeriodTimes(cur.slice(0, safe));
-    }
-  };
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -98,10 +110,13 @@ export default function SetupPage() {
       <Card>
         <CardHeader>
           <CardTitle>교시 시간</CardTitle>
-          <CardDescription>교시 수와 각 교시의 시작/종료 시간을 입력합니다.</CardDescription>
+          <CardDescription>
+            교시 수, 1교시 시작, 시험시간, 쉬는시간을 입력하면 1교시부터 마지막 교시까지 시작·종료
+            시간이 채워집니다. 각 교시 시간은 아래에서 직접 고칠 수 있습니다.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex items-end gap-3">
+          <div className="flex flex-wrap items-end gap-3">
             <div>
               <Label htmlFor="periodCount">교시 수</Label>
               <Input
@@ -111,7 +126,59 @@ export default function SetupPage() {
                 max={10}
                 className="w-24"
                 value={exam.periodCount}
-                onChange={(e) => setPeriodCount(Number(e.target.value))}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (!Number.isFinite(n)) return;
+                  applyGeneratedTimes(n, firstStart, examMinutes, breakMinutes);
+                }}
+              />
+            </div>
+            <div>
+              <Label htmlFor="firstStart">1교시 시작</Label>
+              <Input
+                id="firstStart"
+                type="time"
+                className="w-32"
+                value={firstStart}
+                onChange={(e) => {
+                  const start = e.target.value;
+                  setFirstStart(start);
+                  applyGeneratedTimes(exam.periodCount, start, examMinutes, breakMinutes);
+                }}
+              />
+            </div>
+            <div>
+              <Label htmlFor="examMinutes">시험시간 (분)</Label>
+              <Input
+                id="examMinutes"
+                type="number"
+                min={1}
+                max={180}
+                className="w-28"
+                value={examMinutes}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (!Number.isFinite(n)) return;
+                  setExamMinutes(n);
+                  applyGeneratedTimes(exam.periodCount, firstStart, n, breakMinutes);
+                }}
+              />
+            </div>
+            <div>
+              <Label htmlFor="breakMinutes">쉬는시간 (분)</Label>
+              <Input
+                id="breakMinutes"
+                type="number"
+                min={0}
+                max={180}
+                className="w-28"
+                value={breakMinutes}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (!Number.isFinite(n)) return;
+                  setBreakMinutes(n);
+                  applyGeneratedTimes(exam.periodCount, firstStart, examMinutes, n);
+                }}
               />
             </div>
           </div>
@@ -181,4 +248,70 @@ export default function SetupPage() {
       <StepNavButtons currentPath="setup" />
     </div>
   );
+}
+
+const MINUTES_PER_DAY = 24 * 60;
+
+function clampPeriodCount(n: number): number {
+  if (!Number.isFinite(n)) return 1;
+  return Math.max(1, Math.min(10, Math.floor(n)));
+}
+
+function minutesFromTime(value: string): number | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+function timeFromMinutes(total: number): string {
+  const wrapped = ((total % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY;
+  const hours = Math.floor(wrapped / 60);
+  const minutes = wrapped % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function diffMinutes(start: string, end: string): number | null {
+  const from = minutesFromTime(start);
+  const to = minutesFromTime(end);
+  if (from == null || to == null || to < from) return null;
+  return to - from;
+}
+
+function inferPeriodSchedule(times: PeriodTime[]): {
+  firstStart: string;
+  examMinutes: number;
+  breakMinutes: number;
+} {
+  const first = times[0];
+  const firstStart = first && minutesFromTime(first.start) != null ? first.start : "09:00";
+  const exam = first ? diffMinutes(first.start, first.end) : null;
+  const examMinutes = exam != null && exam > 0 ? exam : 50;
+  const gap = first && times[1] ? diffMinutes(first.end, times[1].start) : null;
+  return { firstStart, examMinutes, breakMinutes: gap ?? 20 };
+}
+
+function buildPeriodTimes(
+  count: number,
+  firstStart: string,
+  examMinutes: number,
+  breakMinutes: number,
+): PeriodTime[] | null {
+  const start0 = minutesFromTime(firstStart);
+  if (start0 == null || examMinutes < 1 || examMinutes > 180 || breakMinutes < 0 || breakMinutes > 180) {
+    return null;
+  }
+  const times: PeriodTime[] = [];
+  let cursor = start0;
+  for (let period = 1; period <= count; period++) {
+    times.push({
+      period,
+      start: timeFromMinutes(cursor),
+      end: timeFromMinutes(cursor + examMinutes),
+    });
+    cursor += examMinutes + breakMinutes;
+  }
+  return times;
 }
