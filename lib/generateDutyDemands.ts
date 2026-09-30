@@ -110,15 +110,25 @@ function isInSelfStudyClassRange(grade: Grade, classNum: number): boolean {
   return classNum >= 1 && classNum <= PERIOD1_SELF_STUDY_CLASSES[grade];
 }
 
+function gradeScheduleDates(exam: Exam, grade: Grade): string[] {
+  const gs = exam.gradeSchedule.find((g) => g.grade === grade);
+  if (!gs?.startDate || !gs?.endDate) return [];
+  return eachDate(gs.startDate, gs.endDate);
+}
+
 /**
  * 복도감독 O에서 해당 학년·날짜·교시에 복도감독을 둘지.
- * 1·4교시는 제외. 1학년은 3교시만. 그 교시 시험이 특별실에만 있을 때.
+ * 1·4교시는 제외. 1학년은 시험 기간의 3교시 전체.
+ * 2·3학년은 그 교시 시험이 특별실에만 있을 때(2·3교시).
  */
 export function needsHallDuty(exam: Exam, grade: Grade, date: string, period: number): boolean {
   if (dutyDemandFillModeOf(exam) !== "withHall") return false;
   if (period === 1 || period === EXAM_ROOM_ONLY_PERIOD) return false;
   if (period !== 2 && period !== 3) return false;
-  if (grade === 1 && period !== 3) return false;
+
+  if (grade === 1) {
+    return period === 3 && isDateInGradeSchedule(exam, grade, date);
+  }
 
   const classes = examClassNumbersAt(exam, date, period, grade);
   if (classes.length === 0) return false;
@@ -145,6 +155,9 @@ export function generateAutoDutyDemands(exam: Exam): DutyDemand[] {
   };
 
   const putSelfStudy = (date: string, period: number, grade: Grade, classNum: number) => {
+    if (withHall && needsHallDuty(exam, grade, date, period) && isHallDutyClassroom(grade, classNum)) {
+      return;
+    }
     put(date, period, roomIdForClass(grade, classNum), selfStudyId, 1);
   };
 
@@ -193,7 +206,10 @@ export function generateAutoDutyDemands(exam: Exam): DutyDemand[] {
   }
 
   if (withHall && hallId) {
-    for (const [grade, dates] of examDaysByGrade) {
+    const grades: Grade[] = [1, 2, 3];
+    for (const grade of grades) {
+      const dates =
+        grade === 1 ? gradeScheduleDates(exam, grade) : [...(examDaysByGrade.get(grade) ?? [])];
       for (const date of dates) {
         for (let period = 2; period <= exam.periodCount; period++) {
           if (!needsHallDuty(exam, grade, date, period)) continue;
@@ -215,6 +231,12 @@ function isAutoSelfStudyDemand(
 ): boolean {
   if (d.period === EXAM_ROOM_ONLY_PERIOD) return false;
   if (!isInSelfStudyClassRange(parsed.grade, parsed.classNum)) return false;
+  if (
+    needsHallDuty(exam, parsed.grade, d.date, d.period) &&
+    isHallDutyClassroom(parsed.grade, parsed.classNum)
+  ) {
+    return false;
+  }
   if (
     dutyDemandFillModeOf(exam) === "withHall" &&
     d.period === 1 &&

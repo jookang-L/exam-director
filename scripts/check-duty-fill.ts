@@ -89,7 +89,7 @@ const date = "2026-05-25";
   assert.equal(count(exam, date, 1, classNumberToRoomId(2, 2), "복도감독"), 0);
 }
 
-// 복도감독 O: 2교시 특별실만 → 지정 교실 복도 1, 자습과 함께. 일반반 섞이면 복도 없음.
+// 복도감독 O: 특별실만인 교시는 지정 교실 복도 1·자습 0. 1학년 3교시는 시험과 무관하게 복도.
 {
   const exam = examBase();
   exam.dutyDemandFillMode = "withHall";
@@ -147,18 +147,30 @@ const date = "2026-05-25";
 
   for (const cls of [2, 4, 6, 9, 11]) {
     assert.equal(count(exam, date, 2, classNumberToRoomId(2, cls), "복도감독"), 1, `g2 hall ${cls}`);
-    assert.equal(count(exam, date, 2, classNumberToRoomId(2, cls), "자습감독"), 1, `g2 self ${cls}`);
+    assert.equal(count(exam, date, 2, classNumberToRoomId(2, cls), "자습감독"), 0, `g2 self ${cls}`);
   }
   assert.equal(count(exam, date, 2, classNumberToRoomId(2, 1), "복도감독"), 0);
+  assert.equal(count(exam, date, 2, classNumberToRoomId(2, 1), "자습감독"), 1);
   assert.equal(count(exam, date, 2, classNumberToRoomId(2, 16), "정감독"), 1);
   assert.equal(count(exam, date, 2, classNumberToRoomId(2, 3), "복도감독"), 0);
 
   assert.equal(count(exam, date, 2, classNumberToRoomId(3, 3), "복도감독"), 0);
   for (const cls of [3, 6, 8, 10, 12]) {
     assert.equal(count(exam, date, 3, classNumberToRoomId(3, cls), "복도감독"), 1, `g3 hall ${cls}`);
+    assert.equal(count(exam, date, 3, classNumberToRoomId(3, cls), "자습감독"), 0, `g3 self ${cls}`);
   }
+  assert.equal(count(exam, date, 3, classNumberToRoomId(3, 1), "자습감독"), 1);
+  assert.equal(count(exam, date, 3, classNumberToRoomId(3, 2), "자습감독"), 1);
   assert.equal(count(exam, date, 2, classNumberToRoomId(1, 2), "복도감독"), 0);
-  assert.equal(count(exam, date, 3, classNumberToRoomId(1, 2), "복도감독"), 0);
+  for (const day of ["2026-05-25", "2026-05-26"]) {
+    for (const cls of [2, 5, 7, 11, 13]) {
+      assert.equal(count(exam, day, 3, classNumberToRoomId(1, cls), "복도감독"), 1, `g1 ${day} ${cls}`);
+      assert.equal(count(exam, day, 3, classNumberToRoomId(1, cls), "자습감독"), 0, `g1 self ${day} ${cls}`);
+    }
+  }
+  assert.equal(count(exam, date, 3, classNumberToRoomId(1, 1), "정감독"), 1);
+  assert.equal(count(exam, date, 3, classNumberToRoomId(1, 1), "복도감독"), 0);
+  assert.equal(count(exam, date, 3, classNumberToRoomId(1, 3), "자습감독"), 1);
 
   assert.equal(count(exam, date, 4, classNumberToRoomId(2, 16), "정감독"), 1);
   assert.equal(count(exam, date, 4, classNumberToRoomId(2, 2), "복도감독"), 0);
