@@ -155,9 +155,7 @@ export function generateAutoDutyDemands(exam: Exam): DutyDemand[] {
   };
 
   const putSelfStudy = (date: string, period: number, grade: Grade, classNum: number) => {
-    if (withHall && needsHallDuty(exam, grade, date, period) && isHallDutyClassroom(grade, classNum)) {
-      return;
-    }
+    if (withHall && needsHallDuty(exam, grade, date, period)) return;
     put(date, period, roomIdForClass(grade, classNum), selfStudyId, 1);
   };
 
@@ -191,7 +189,7 @@ export function generateAutoDutyDemands(exam: Exam): DutyDemand[] {
     }
   }
 
-  // 시험 있는 날: 시험 없는 교시·반 → 자습감독. 4교시·1교시는 제외.
+  // 시험 있는 날: 시험 없는 교시·반 → 자습감독. 4교시·1교시, 복도를 넣는 교시는 제외.
   for (const [grade, dates] of examDaysByGrade) {
     const maxClass = PERIOD1_SELF_STUDY_CLASSES[grade];
     for (const date of dates) {
@@ -231,12 +229,7 @@ function isAutoSelfStudyDemand(
 ): boolean {
   if (d.period === EXAM_ROOM_ONLY_PERIOD) return false;
   if (!isInSelfStudyClassRange(parsed.grade, parsed.classNum)) return false;
-  if (
-    needsHallDuty(exam, parsed.grade, d.date, d.period) &&
-    isHallDutyClassroom(parsed.grade, parsed.classNum)
-  ) {
-    return false;
-  }
+  if (needsHallDuty(exam, parsed.grade, d.date, d.period)) return false;
   if (
     dutyDemandFillModeOf(exam) === "withHall" &&
     d.period === 1 &&

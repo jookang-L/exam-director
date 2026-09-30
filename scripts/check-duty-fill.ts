@@ -150,17 +150,18 @@ const date = "2026-05-25";
     assert.equal(count(exam, date, 2, classNumberToRoomId(2, cls), "자습감독"), 0, `g2 self ${cls}`);
   }
   assert.equal(count(exam, date, 2, classNumberToRoomId(2, 1), "복도감독"), 0);
-  assert.equal(count(exam, date, 2, classNumberToRoomId(2, 1), "자습감독"), 1);
+  assert.equal(count(exam, date, 2, classNumberToRoomId(2, 1), "자습감독"), 0);
   assert.equal(count(exam, date, 2, classNumberToRoomId(2, 16), "정감독"), 1);
   assert.equal(count(exam, date, 2, classNumberToRoomId(2, 3), "복도감독"), 0);
+  assert.equal(count(exam, date, 2, classNumberToRoomId(2, 3), "자습감독"), 0);
 
   assert.equal(count(exam, date, 2, classNumberToRoomId(3, 3), "복도감독"), 0);
   for (const cls of [3, 6, 8, 10, 12]) {
     assert.equal(count(exam, date, 3, classNumberToRoomId(3, cls), "복도감독"), 1, `g3 hall ${cls}`);
     assert.equal(count(exam, date, 3, classNumberToRoomId(3, cls), "자습감독"), 0, `g3 self ${cls}`);
   }
-  assert.equal(count(exam, date, 3, classNumberToRoomId(3, 1), "자습감독"), 1);
-  assert.equal(count(exam, date, 3, classNumberToRoomId(3, 2), "자습감독"), 1);
+  assert.equal(count(exam, date, 3, classNumberToRoomId(3, 1), "자습감독"), 0);
+  assert.equal(count(exam, date, 3, classNumberToRoomId(3, 2), "자습감독"), 0);
   assert.equal(count(exam, date, 2, classNumberToRoomId(1, 2), "복도감독"), 0);
   for (const day of ["2026-05-25", "2026-05-26"]) {
     for (const cls of [2, 5, 7, 11, 13]) {
@@ -170,7 +171,9 @@ const date = "2026-05-25";
   }
   assert.equal(count(exam, date, 3, classNumberToRoomId(1, 1), "정감독"), 1);
   assert.equal(count(exam, date, 3, classNumberToRoomId(1, 1), "복도감독"), 0);
-  assert.equal(count(exam, date, 3, classNumberToRoomId(1, 3), "자습감독"), 1);
+  assert.equal(count(exam, date, 3, classNumberToRoomId(1, 1), "자습감독"), 0);
+  assert.equal(count(exam, date, 3, classNumberToRoomId(1, 3), "자습감독"), 0);
+  assert.equal(count(exam, date, 3, classNumberToRoomId(1, 3), "복도감독"), 0);
 
   assert.equal(count(exam, date, 4, classNumberToRoomId(2, 16), "정감독"), 1);
   assert.equal(count(exam, date, 4, classNumberToRoomId(2, 2), "복도감독"), 0);
