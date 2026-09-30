@@ -242,7 +242,7 @@ export const useExamStore = create<State & Actions>()(
 );
 
 type ArrayKeys = {
-  [K in keyof Exam]: Exam[K] extends Array<infer U>
+  [K in keyof Exam]-?: Exam[K] extends Array<infer U>
     ? U extends { id: string }
       ? K
       : never
