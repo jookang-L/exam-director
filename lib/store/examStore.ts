@@ -16,6 +16,7 @@ import type {
   Assignment,
   GradeSchedule,
   PeriodTime,
+  DutyDemandFillMode,
 } from "@/lib/types";
 import { newId } from "@/lib/types";
 import { saveExam } from "@/lib/storage/db";
@@ -72,6 +73,7 @@ type Actions = {
   removeDutyDemand: (id: string) => void;
   replaceDutyDemands: (ds: DutyDemand[]) => void;
   syncDutyDemandsFromSchedule: () => void;
+  setDutyDemandFillMode: (mode: DutyDemandFillMode) => void;
 
   upsertDutyType: (d: DutyType) => void;
   removeDutyType: (id: string) => void;
@@ -173,6 +175,18 @@ export const useExamStore = create<State & Actions>()(
       removeDutyDemand: (id) => removeById("dutyDemands", id, set, get),
       replaceDutyDemands: (dutyDemands) => get().patchExam({ dutyDemands }),
       syncDutyDemandsFromSchedule: () => applyDutyDemandSync(get),
+      setDutyDemandFillMode: (dutyDemandFillMode) => {
+        const cur = get().exam;
+        if (!cur) return;
+        const exam = { ...cur, dutyDemandFillMode };
+        const rooms = mergeMissingDefaultRooms(exam.rooms);
+        const next = rooms === exam.rooms ? exam : { ...exam, rooms };
+        get().patchExam({
+          dutyDemandFillMode,
+          rooms: next.rooms,
+          dutyDemands: syncDutyDemandsFromSchedule(next),
+        });
+      },
 
       upsertDutyType: (d) => upsertById("dutyTypes", d, set, get),
       removeDutyType: (id) => {

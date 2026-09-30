@@ -37,6 +37,7 @@ export const examSchema = z.object({
   examSlots: z.array(z.object({ id: z.string() }).passthrough()),
   rooms: z.array(z.object({ id: z.string(), name: z.string() })),
   dutyDemands: z.array(z.object({ id: z.string() }).passthrough()),
+  dutyDemandFillMode: z.enum(["noHall", "withHall"]).optional(),
   teachers: z.array(teacherSchema),
   dutyTypes: z.array(
     z.object({

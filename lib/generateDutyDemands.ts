@@ -1,5 +1,5 @@
-import { newId, type DutyDemand, type Exam, type Grade } from "@/lib/types";
-import { classNumberToRoomId, classNumbersForRoomId } from "@/lib/roomClassMap";
+import { newId, type DutyDemand, type DutyDemandFillMode, type Exam, type Grade } from "@/lib/types";
+import { classNumberToRoomId, classNumbersForRoomId, isSpecialClassNumber } from "@/lib/roomClassMap";
 import { eachDate } from "@/lib/utils";
 
 /** 자습감독 자동 배정 대상 일반 반 범위 (특별실 제외) */
@@ -9,7 +9,31 @@ export const PERIOD1_SELF_STUDY_CLASSES: Record<Grade, number> = {
   3: 13,
 };
 
+/** 복도감독 O — 복도감독을 두는 교실 */
+export const HALL_DUTY_CLASSROOMS: Record<Grade, readonly number[]> = {
+  1: [2, 5, 7, 11, 13],
+  2: [2, 4, 6, 9, 11],
+  3: [3, 6, 8, 10, 12],
+};
+
+const HALL_DUTY_CLASSROOM_SET: Record<Grade, ReadonlySet<number>> = {
+  1: new Set(HALL_DUTY_CLASSROOMS[1]),
+  2: new Set(HALL_DUTY_CLASSROOMS[2]),
+  3: new Set(HALL_DUTY_CLASSROOMS[3]),
+};
+
+/** 4교시는 시험 고사실의 정·부감독만 자동으로 채운다. */
+const EXAM_ROOM_ONLY_PERIOD = 4;
+
 const AUTO_DUTY_NAMES = new Set(["정감독", "부감독", "자습감독"]);
+
+export function dutyDemandFillModeOf(exam: Exam): DutyDemandFillMode {
+  return exam.dutyDemandFillMode === "withHall" ? "withHall" : "noHall";
+}
+
+export function isHallDutyClassroom(grade: Grade, classNum: number): boolean {
+  return HALL_DUTY_CLASSROOM_SET[grade].has(classNum);
+}
 
 export function roomIdForClass(grade: Grade, classNum: number): string {
   return classNumberToRoomId(grade, classNum);
@@ -45,6 +69,15 @@ function gradeHasExamOnDate(exam: Exam, grade: Grade, date: string): boolean {
   return exam.examSlots.some((s) => s.grade === grade && s.date === date);
 }
 
+function examClassNumbersAt(exam: Exam, date: string, period: number, grade: Grade): number[] {
+  const classes = new Set<number>();
+  for (const slot of exam.examSlots) {
+    if (slot.date !== date || slot.period !== period || slot.grade !== grade) continue;
+    for (const cls of slot.classes) classes.add(cls);
+  }
+  return [...classes];
+}
+
 function hasExamAt(
   exam: Exam,
   date: string,
@@ -77,13 +110,30 @@ function isInSelfStudyClassRange(grade: Grade, classNum: number): boolean {
   return classNum >= 1 && classNum <= PERIOD1_SELF_STUDY_CLASSES[grade];
 }
 
+/**
+ * 복도감독 O에서 해당 학년·날짜·교시에 복도감독을 둘지.
+ * 1·4교시는 제외. 1학년은 3교시만. 그 교시 시험이 특별실에만 있을 때.
+ */
+export function needsHallDuty(exam: Exam, grade: Grade, date: string, period: number): boolean {
+  if (dutyDemandFillModeOf(exam) !== "withHall") return false;
+  if (period === 1 || period === EXAM_ROOM_ONLY_PERIOD) return false;
+  if (period !== 2 && period !== 3) return false;
+  if (grade === 1 && period !== 3) return false;
+
+  const classes = examClassNumbersAt(exam, date, period, grade);
+  if (classes.length === 0) return false;
+  return classes.every((cls) => isSpecialClassNumber(grade, cls));
+}
+
 /** 시험표·시험 기간 기준 감독 수요 자동 생성 */
 export function generateAutoDutyDemands(exam: Exam): DutyDemand[] {
   const chiefId = findDutyTypeId(exam, "정감독");
   const assistantId = findDutyTypeId(exam, "부감독");
   const selfStudyId = findDutyTypeId(exam, "자습감독");
+  const hallId = findDutyTypeId(exam, "복도감독");
   if (!chiefId || !assistantId || !selfStudyId) return [];
 
+  const withHall = dutyDemandFillModeOf(exam) === "withHall";
   const byKey = new Map<string, DutyDemand>();
   const examAt = new Set<string>();
   const examDaysByGrade = new Map<Grade, Set<string>>();
@@ -101,6 +151,9 @@ export function generateAutoDutyDemands(exam: Exam): DutyDemand[] {
   for (const slot of exam.examSlots) {
     for (const cls of slot.classes) {
       examAt.add(examAtKey(slot.date, slot.period, slot.grade, cls));
+      const period1Regular =
+        withHall && slot.period === 1 && !isSpecialClassNumber(slot.grade, cls);
+      if (period1Regular) continue;
       const roomId = roomIdForClass(slot.grade, cls);
       put(slot.date, slot.period, roomId, chiefId, 1);
       put(slot.date, slot.period, roomId, assistantId, 1);
@@ -113,26 +166,40 @@ export function generateAutoDutyDemands(exam: Exam): DutyDemand[] {
     days.add(slot.date);
   }
 
-  // 1교시: 시험 기간 매일 (시험 보는 반 제외)
+  // 1교시: 시험 기간 매일. 복도감독 O는 일반 반 자습 1명만 (시험 반이어도 정·부 없음).
   for (const gs of exam.gradeSchedule) {
     if (!gs.startDate || !gs.endDate) continue;
     const maxClass = PERIOD1_SELF_STUDY_CLASSES[gs.grade];
     for (const date of eachDate(gs.startDate, gs.endDate)) {
       for (let cls = 1; cls <= maxClass; cls++) {
-        if (examAt.has(examAtKey(date, 1, gs.grade, cls))) continue;
+        if (!withHall && examAt.has(examAtKey(date, 1, gs.grade, cls))) continue;
         putSelfStudy(date, 1, gs.grade, cls);
       }
     }
   }
 
-  // 시험 있는 날: 시험 없는 교시·반 → 자습감독 (부분 시험 반 포함)
+  // 시험 있는 날: 시험 없는 교시·반 → 자습감독. 4교시·1교시는 제외.
   for (const [grade, dates] of examDaysByGrade) {
     const maxClass = PERIOD1_SELF_STUDY_CLASSES[grade];
     for (const date of dates) {
-      for (let period = 1; period <= exam.periodCount; period++) {
+      for (let period = 2; period <= exam.periodCount; period++) {
+        if (period === EXAM_ROOM_ONLY_PERIOD) continue;
         for (let cls = 1; cls <= maxClass; cls++) {
           if (examAt.has(examAtKey(date, period, grade, cls))) continue;
           putSelfStudy(date, period, grade, cls);
+        }
+      }
+    }
+  }
+
+  if (withHall && hallId) {
+    for (const [grade, dates] of examDaysByGrade) {
+      for (const date of dates) {
+        for (let period = 2; period <= exam.periodCount; period++) {
+          if (!needsHallDuty(exam, grade, date, period)) continue;
+          for (const cls of HALL_DUTY_CLASSROOMS[grade]) {
+            put(date, period, roomIdForClass(grade, cls), hallId, 1);
+          }
         }
       }
     }
@@ -146,30 +213,61 @@ function isAutoSelfStudyDemand(
   d: DutyDemand,
   parsed: { grade: Grade; classNum: number },
 ): boolean {
+  if (d.period === EXAM_ROOM_ONLY_PERIOD) return false;
   if (!isInSelfStudyClassRange(parsed.grade, parsed.classNum)) return false;
+  if (
+    dutyDemandFillModeOf(exam) === "withHall" &&
+    d.period === 1 &&
+    isDateInGradeSchedule(exam, parsed.grade, d.date)
+  ) {
+    return true;
+  }
   if (hasExamAt(exam, d.date, d.period, parsed.grade, parsed.classNum)) return false;
 
   if (d.period === 1 && isDateInGradeSchedule(exam, parsed.grade, d.date)) return true;
-  if (gradeHasExamOnDate(exam, parsed.grade, d.date)) return true;
+  if (d.period !== 1 && gradeHasExamOnDate(exam, parsed.grade, d.date)) return true;
 
   return false;
 }
 
 export function isAutoManagedDemand(exam: Exam, d: DutyDemand): boolean {
   const dt = exam.dutyTypes.find((t) => t.id === d.dutyTypeId);
-  if (!dt || !AUTO_DUTY_NAMES.has(dt.name)) return false;
+  if (!dt) return false;
 
   const parsed = parseClassRoomId(d.roomId);
   if (!parsed) return false;
+
+  if (dt.name === "복도감독") {
+    return isHallDutyClassroom(parsed.grade, parsed.classNum) && needsHallDuty(exam, parsed.grade, d.date, d.period);
+  }
+
+  if (!AUTO_DUTY_NAMES.has(dt.name)) return false;
 
   if (dt.name === "자습감독") {
     return isAutoSelfStudyDemand(exam, d, parsed);
   }
 
+  if (
+    dutyDemandFillModeOf(exam) === "withHall" &&
+    d.period === 1 &&
+    !isSpecialClassNumber(parsed.grade, parsed.classNum)
+  ) {
+    return false;
+  }
+
   return hasExamAtRoom(exam, d.date, d.period, d.roomId);
 }
 
+function isFormulaHallDemand(exam: Exam, d: DutyDemand): boolean {
+  const dt = exam.dutyTypes.find((t) => t.id === d.dutyTypeId);
+  if (dt?.name !== "복도감독") return false;
+  const parsed = parseClassRoomId(d.roomId);
+  if (!parsed) return false;
+  return isHallDutyClassroom(parsed.grade, parsed.classNum);
+}
+
 function isClassroomAutoDutyType(exam: Exam, d: DutyDemand): boolean {
+  if (isFormulaHallDemand(exam, d)) return true;
   const dt = exam.dutyTypes.find((t) => t.id === d.dutyTypeId);
   if (!dt || !AUTO_DUTY_NAMES.has(dt.name)) return false;
   return parseClassRoomId(d.roomId) !== null;
@@ -186,7 +284,7 @@ export function syncDutyDemandsFromSchedule(exam: Exam): DutyDemand[] {
   const autoKeys = new Set(mergedAuto.map(demandKey));
   const manual = exam.dutyDemands.filter((d) => {
     if (autoKeys.has(demandKey(d))) return false;
-    // 일반·특별실 매핑 교실의 정·부·자습은 전부 자동 관리 — 시험표 변경 시 남은 찌꺼기 제거
+    // 일반·특별실 매핑 교실의 정·부·자습, 지정 교실의 복도감독은 자동 관리
     if (isClassroomAutoDutyType(exam, d)) return false;
     return true;
   });

@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { StepNavButtons } from "@/components/wizard/WizardFrame";
 import { Plus, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
-import { newId, type DutyDemand } from "@/lib/types";
+import { newId, type DutyDemand, type DutyDemandFillMode } from "@/lib/types";
+import { HALL_DUTY_CLASSROOMS, dutyDemandFillModeOf } from "@/lib/generateDutyDemands";
 import {
   createDefaultRooms,
   DEFAULT_ROOM_COUNT,
@@ -84,6 +85,20 @@ export default function RoomsPage() {
     }
   }, [exam.id]); // eslint-disable-line react-hooks/exhaustive-deps -- 시험 로드 시 1회
 
+  const fillMode = dutyDemandFillModeOf(exam);
+
+  const applyFillMode = (mode: DutyDemandFillMode) => {
+    m.setDutyDemandFillMode(mode);
+    toast({
+      title: mode === "withHall" ? "복도감독 O로 채움" : "복도감독 X로 채움",
+      description:
+        mode === "withHall"
+          ? "1교시는 일반 반 자습 1명, 특별실만 시험인 2·3교시에는 지정 교실 복도 1명입니다. 4교시는 정·부만 채웠습니다."
+          : "시험 반 정·부, 시험 없는 일반 반 자습으로 채웠습니다. 4교시는 정·부만 채웠습니다.",
+      variant: "success",
+    });
+  };
+
   const getDemand = (date: string, period: number, roomId: string, dutyTypeId: string): number => {
     const d = exam.dutyDemands.find(
       (x) => x.date === date && x.period === period && x.roomId === roomId && x.dutyTypeId === dutyTypeId,
@@ -116,9 +131,9 @@ export default function RoomsPage() {
       <header>
         <h1 className="text-2xl font-bold">STEP 3 — 고사실 / 감독 수요</h1>
         <p className="text-sm text-muted-foreground">
-          기본 고사실 {DEFAULT_ROOM_COUNT}개가 자동으로 들어갑니다. STEP 2 시험표를 바꾸면 정감독·부감독·자습감독
-          (1교시, 시험 없는 교시, 부분 시험의 나머지 반 — 1학년 1~13 · 2학년 1~15 · 3학년 1~13)이 자동
-          반영됩니다. 복도·특별실 등은 직접 입력하세요.
+          기본 고사실 {DEFAULT_ROOM_COUNT}개가 자동으로 들어갑니다. 아래 매트릭스에서 복도감독 X 또는 O를
+          고르면 시험표 기준으로 수요가 다시 채워집니다. 4교시에는 두 버전 모두 시험 고사실의 정·부감독만
+          들어갑니다. 강당처럼 지정 교실이 아닌 복도감독은 그대로 둡니다.
         </p>
       </header>
 
@@ -186,23 +201,54 @@ export default function RoomsPage() {
         <CardHeader>
           <CardTitle>감독 수요 매트릭스</CardTitle>
           <CardDescription>
-            셀에 필요 인원 수를 입력합니다. 0이면 해당 감독이 필요 없는 것입니다.
+            셀에 필요 인원 수를 입력합니다. 0이면 해당 감독이 필요 없는 것입니다. 버전을 바꾸면 자동
+            칸이 그 규칙으로 다시 채워집니다.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Button
-            variant="secondary"
-            onClick={() => {
-              m.syncDutyDemandsFromSchedule();
-              toast({
-                title: "감독 수요 갱신",
-                description: "시험표·시험 기간 기준으로 정감독·부감독·자습감독이 다시 채워졌습니다.",
-                variant: "success",
-              });
-            }}
-          >
-            <RefreshCw className="h-4 w-4" /> 시험표 기준 감독 수요 다시 채우기
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-md border p-1 gap-1" role="group" aria-label="감독 수요 자동 채우기 버전">
+              <Button
+                type="button"
+                size="sm"
+                variant={fillMode === "noHall" ? "default" : "ghost"}
+                aria-pressed={fillMode === "noHall"}
+                onClick={() => applyFillMode("noHall")}
+              >
+                복도감독 X
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={fillMode === "withHall" ? "default" : "ghost"}
+                aria-pressed={fillMode === "withHall"}
+                onClick={() => applyFillMode("withHall")}
+              >
+                복도감독 O
+              </Button>
+            </div>
+            <Button
+              variant="secondary"
+              onClick={() => applyFillMode(fillMode)}
+            >
+              <RefreshCw className="h-4 w-4" /> 선택한 버전으로 다시 채우기
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {fillMode === "noHall" ? (
+              <>
+                복도감독 X: 시험 반마다 정감독 1·부감독 1, 시험 없는 일반 반은 자습감독 1. 복도감독은
+                자동으로 넣지 않습니다. 4교시는 시험 고사실의 정·부만 채웁니다.
+              </>
+            ) : (
+              <>
+                복도감독 O: 1교시는 일반 반 자습감독 1명만 (특별실 시험은 정·부 유지). 2·3교시에 그
+                학년 시험이 특별실에서만 있으면 복도감독 1명 — 1학년 {HALL_DUTY_CLASSROOMS[1].join(", ")}
+                반, 2학년 {HALL_DUTY_CLASSROOMS[2].join(", ")}반, 3학년 {HALL_DUTY_CLASSROOMS[3].join(", ")}
+                반. 1학년 복도는 3교시만. 4교시는 시험 고사실의 정·부만 채웁니다.
+              </>
+            )}
+          </p>
           {dates.length === 0 || exam.rooms.length === 0 || exam.dutyTypes.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               먼저 STEP 1의 시험 기간, 위쪽 고사실 목록, STEP 5의 감독 종류를 설정해주세요.

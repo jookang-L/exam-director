@@ -39,6 +39,7 @@ export function useExamMutators() {
     removeDutyDemand: s.removeDutyDemand,
     replaceDutyDemands: s.replaceDutyDemands,
     syncDutyDemandsFromSchedule: s.syncDutyDemandsFromSchedule,
+    setDutyDemandFillMode: s.setDutyDemandFillMode,
 
     upsertDutyType: s.upsertDutyType,
     removeDutyType: s.removeDutyType,

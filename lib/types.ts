@@ -69,6 +69,9 @@ export type DutyDemand = {
   count: number;
 };
 
+/** STEP 3 감독 수요 자동 채우기. noHall = 복도감독 X, withHall = 복도감독 O */
+export type DutyDemandFillMode = "noHall" | "withHall";
+
 export type TeacherTimetable = {
   id: string;
   teacherId: string;
@@ -143,6 +146,8 @@ export type Exam = {
   examSlots: ExamSlot[];
   rooms: Room[];
   dutyDemands: DutyDemand[];
+  /** 없으면 복도감독 X */
+  dutyDemandFillMode?: DutyDemandFillMode;
   teachers: Teacher[];
   dutyTypes: DutyType[];
   timetable: TeacherTimetable[];
@@ -201,6 +206,7 @@ export function createEmptyExam(name: string): Exam {
     examSlots: [],
     rooms: createDefaultRooms(),
     dutyDemands: [],
+    dutyDemandFillMode: "noHall",
     teachers: [],
     dutyTypes: DEFAULT_DUTY_TYPES.map((d) => ({ ...d })),
     timetable: [],
