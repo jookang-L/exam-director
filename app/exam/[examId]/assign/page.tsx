@@ -238,7 +238,7 @@ export default function AssignPage() {
                 <Stat label="미배정" value={result.unassigned.length} variant={result.unassigned.length === 0 ? "success" : "warning"} />
                 <Stat label="정 편차" value={result.score.chiefSpread} />
                 <Stat label="부 편차" value={result.score.assistantSpread} />
-                <Stat label="누적도 편차" value={result.score.totalFatigueSpread} />
+                <Stat label="기존 누적 편차" value={result.score.totalFatigueSpread} />
                 <Stat label="목표 초과" value={result.score.maxTargetExcess.toFixed(0)} />
                 <Stat label="목표 SSD" value={result.score.targetSSD.toFixed(0)} />
                 <Stat

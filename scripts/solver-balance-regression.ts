@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
 import type { Assignment, DutySlot, Exam, Teacher } from "../lib/types";
+import { teacherDutyWeight, teacherTotalFatigue } from "../lib/algorithm/fatigue";
 import { createSampleExam } from "../lib/sample";
+import { computeAverageTotalFatigue } from "../lib/algorithm/averageFatigue";
 import { evaluateAll } from "../lib/algorithm/constraints";
 import { teacherTeachesSubject } from "../lib/algorithm/examSubjectRules";
 import { buildFixedAssignments } from "../lib/algorithm/fixed";
-import { reassignSubset, runSolver } from "../lib/algorithm/solver";
+import { findBalanceHintSuggestions } from "../lib/algorithm/balanceHints";
+import { computeBalanceSpreads, scoreSolverResult } from "../lib/algorithm/balanceScore";
+import { buildBalancePlanForOptions, reassignSubset, runSolver } from "../lib/algorithm/solver";
 import {
+  buildAssignedMassTargets,
   buildBalancePlan,
   waterFillTargets,
 } from "../lib/algorithm/targetFatigue";
@@ -220,6 +225,82 @@ const targets = waterFillTargets(
 assert.ok(Math.abs((targets.get("a") ?? 0) - 100) < 1e-6);
 assert.ok(Math.abs((targets.get("b") ?? 0) - 100) < 1e-6);
 
+const mixedTeachers: Teacher[] = [
+  { id: "v1", name: "기존1", subject: "", roleType: "정교사", previousFatigueScore: 1000 },
+  { id: "v2", name: "기존2", subject: "", roleType: "정교사", previousFatigueScore: 1000 },
+  { id: "z1", name: "신규1", subject: "", roleType: "정교사", previousFatigueScore: 0 },
+  { id: "z2", name: "신규2", subject: "", roleType: "정교사", previousFatigueScore: 0 },
+];
+const mixedSlots: DutySlot[] = [];
+for (const date of ["2026-06-01", "2026-06-02"]) {
+  for (const period of [1, 2]) {
+    for (const roomId of ["r1", "r2"]) {
+      mixedSlots.push({
+        id: `${date}-${period}-${roomId}`,
+        date,
+        period,
+        roomId,
+        dutyTypeId: "chief",
+      });
+    }
+  }
+}
+const mixedExam: Exam = {
+  ...baseExam,
+  carryOverRatio: 1,
+  rooms: [
+    { id: "r1", name: "r1" },
+    { id: "r2", name: "r2" },
+  ],
+  teachers: mixedTeachers,
+  dutySlots: mixedSlots,
+};
+const mixedSolved = runSolver(mixedExam, { seed: 1 });
+const mixedWithAssignments = { ...mixedExam, assignments: mixedSolved.assignments };
+const mixedDuty = (id: string) => teacherDutyWeight(mixedWithAssignments, id);
+const freshDuty = [mixedDuty("z1"), mixedDuty("z2")];
+const veteranDuty = [mixedDuty("v1"), mixedDuty("v2")];
+const mixedWeight = mixedSlots.length * 100;
+const perPersonThisExam = mixedWeight / mixedTeachers.length;
+const mixedPlan = buildBalancePlan(mixedExam, [], mixedSlots);
+assert.equal(mixedSolved.validationErrors.length, 0);
+assert.equal(mixedSolved.unassigned.length, 0);
+assert.ok(Math.abs((mixedPlan.targetByTeacher.get("z1") ?? 0) - perPersonThisExam) < 1e-6);
+assert.ok(Math.abs((mixedPlan.targetByTeacher.get("z2") ?? 0) - perPersonThisExam) < 1e-6);
+for (const duty of freshDuty) {
+  assert.equal(
+    duty,
+    perPersonThisExam,
+    `신규 감독이 이번 평균 ${perPersonThisExam}이어야 합니다. 신규 ${freshDuty.join(",")}, 기존 ${veteranDuty.join(",")}`,
+  );
+}
+
+const cappedExcludes = ["z1", "z2"].flatMap((teacherId) =>
+  [
+    ["2026-06-01", 2],
+    ["2026-06-02", 1],
+    ["2026-06-02", 2],
+  ].map(([date, period]) => ({
+    id: `ex-${teacherId}-${date}-${period}`,
+    teacherId,
+    date: String(date),
+    period: Number(period),
+  })),
+);
+const cappedExam: Exam = { ...mixedExam, excludes: cappedExcludes };
+const cappedPlan = buildBalancePlan(cappedExam, [], mixedSlots);
+const cappedSolved = runSolver(cappedExam, { seed: 1 });
+const cappedWithAssignments = { ...cappedExam, assignments: cappedSolved.assignments };
+const cappedDuty = (id: string) => teacherDutyWeight(cappedWithAssignments, id);
+assert.equal(cappedSolved.validationErrors.length, 0);
+assert.equal(cappedSolved.unassigned.length, 0);
+assert.ok(Math.abs((cappedPlan.targetByTeacher.get("z1") ?? 0) - 100) < 1e-6);
+assert.ok(Math.abs((cappedPlan.targetByTeacher.get("z2") ?? 0) - 100) < 1e-6);
+assert.equal(cappedDuty("z1"), 100);
+assert.equal(cappedDuty("z2"), 100);
+assert.ok(cappedDuty("v1") >= 200);
+assert.ok(cappedDuty("v2") >= 200);
+
 const sample = createSampleExam();
 const fixed = buildFixedAssignments(sample).filter((assignment) => assignment.fixed);
 const solved = runSolver(sample, { seed: 1 });
@@ -256,6 +337,147 @@ for (const [slotId, teacherId] of outsideBefore) {
   );
 }
 
+const fixedOverSlots: DutySlot[] = [
+  { id: "z1", date: "2026-06-01", period: 1, roomId: "r", dutyTypeId: "chief" },
+  { id: "z2", date: "2026-06-01", period: 2, roomId: "r", dutyTypeId: "chief" },
+  { id: "open", date: "2026-06-02", period: 1, roomId: "r", dutyTypeId: "chief" },
+];
+const fixedOverAssignments: Assignment[] = [
+  { id: "a-z1", dutySlotId: "z1", teacherId: "z", fixed: true },
+  { id: "a-z2", dutySlotId: "z2", teacherId: "z", fixed: true },
+];
+const fixedOverExam: Exam = {
+  ...baseExam,
+  carryOverRatio: 0,
+  teachers: [
+    { id: "z", name: "신규", subject: "", roleType: "정교사", previousFatigueScore: 0 },
+    { id: "v1", name: "기존1", subject: "", roleType: "정교사", previousFatigueScore: 100 },
+    { id: "v2", name: "기존2", subject: "", roleType: "정교사", previousFatigueScore: 100 },
+  ],
+  dutySlots: fixedOverSlots,
+  assignments: fixedOverAssignments,
+};
+const fixedOverPlan = buildBalancePlan(
+  fixedOverExam,
+  fixedOverAssignments,
+  fixedOverSlots.filter((slot) => slot.id === "open"),
+);
+const fixedOverTargets = buildAssignedMassTargets(
+  fixedOverExam,
+  fixedOverPlan,
+  fixedOverAssignments,
+);
+const fixedOverScore = scoreSolverResult(
+  fixedOverExam,
+  {
+    assignments: fixedOverAssignments,
+    unassigned: fixedOverSlots.filter((slot) => slot.id === "open"),
+    validationErrors: [],
+  },
+  fixedOverPlan,
+);
+assert.ok((fixedOverPlan.targetByTeacher.get("z") ?? 0) < 200);
+assert.ok(Math.abs((fixedOverTargets.get("z") ?? 0) - 200) < 1e-6);
+assert.equal(fixedOverScore.maxTargetExcess, 0);
+assert.equal(fixedOverScore.targetSSD, 0);
+
+const unevenDates = [
+  "2026-06-01",
+  "2026-06-02",
+  "2026-06-03",
+  "2026-06-04",
+  "2026-06-05",
+  "2026-06-06",
+  "2026-06-07",
+  "2026-06-08",
+];
+const unevenSlots: DutySlot[] = unevenDates.map((date, index) => ({
+  id: `u-${index}`,
+  date,
+  period: 1,
+  roomId: "r",
+  dutyTypeId: "chief",
+}));
+const unevenAssignments: Assignment[] = [0, 1, 2, 3].map((index) => ({
+  id: `ua-${index}`,
+  dutySlotId: `u-${index}`,
+  teacherId: index < 3 ? "e1" : "e2",
+  fixed: false,
+}));
+const unevenExam: Exam = {
+  ...baseExam,
+  carryOverRatio: 0,
+  teachers: [
+    { id: "e1", name: "기존A", subject: "", roleType: "정교사", previousFatigueScore: 100 },
+    { id: "e2", name: "기존B", subject: "", roleType: "정교사", previousFatigueScore: 100 },
+  ],
+  dutySlots: unevenSlots,
+};
+const unevenPlan = buildBalancePlan(unevenExam, [], unevenSlots);
+const unevenScore = scoreSolverResult(
+  unevenExam,
+  {
+    assignments: unevenAssignments,
+    unassigned: unevenSlots.slice(4),
+    validationErrors: [],
+  },
+  unevenPlan,
+);
+const unevenTargetSum = [...buildAssignedMassTargets(unevenExam, unevenPlan, unevenAssignments).values()].reduce(
+  (sum, value) => sum + value,
+  0,
+);
+assert.ok(Math.abs(unevenScore.maxTargetExcess - 100) < 1e-4, String(unevenScore.maxTargetExcess));
+assert.ok(Math.abs(unevenScore.targetSSD - 20000) < 1e-2, String(unevenScore.targetSSD));
+assert.ok(Math.abs(unevenTargetSum - 400) < 1e-4, String(unevenTargetSum));
+
+const freshOnlyExam: Exam = {
+  ...baseExam,
+  periodCount: 1,
+  periodTimes: [{ period: 1, start: "09:00", end: "09:50" }],
+  rooms: [
+    { id: "r1", name: "r1" },
+    { id: "r2", name: "r2" },
+  ],
+  teachers: [
+    { id: "f1", name: "신규A", subject: "", roleType: "정교사", previousFatigueScore: 0 },
+    { id: "f2", name: "신규B", subject: "", roleType: "정교사", previousFatigueScore: 0 },
+  ],
+  dutySlots: [
+    { id: "hard", date: "2026-06-01", period: 1, roomId: "r1", dutyTypeId: "chief" },
+    { id: "soft", date: "2026-06-01", period: 1, roomId: "r2", dutyTypeId: "self" },
+  ],
+  assignments: [
+    { id: "fa-hard", dutySlotId: "hard", teacherId: "f1", fixed: false },
+    { id: "fa-soft", dutySlotId: "soft", teacherId: "f2", fixed: false },
+  ],
+};
+const freshAverage = computeAverageTotalFatigue(freshOnlyExam);
+assert.equal(freshAverage.veteransOnly, false);
+assert.equal(freshAverage.count, 2);
+assert.ok(Math.abs(freshAverage.average - 65) < 1e-6);
+const freshSpreads = computeBalanceSpreads(freshOnlyExam);
+assert.equal(freshSpreads.eligibleCount, 2);
+assert.equal(freshSpreads.totalFatigueSpread, 70);
+const freshHints = findBalanceHintSuggestions(freshOnlyExam);
+assert.ok(freshHints.length > 0);
+assert.equal(freshHints[0]?.before.totalFatigueSpread, 70);
+
+const samplePlan = buildBalancePlanForOptions(sample);
+const sampleTargets = buildAssignedMassTargets(sample, samplePlan, solved.assignments);
+let sampleTargetSum = 0;
+let sampleActualSum = 0;
+for (const teacher of sample.teachers) {
+  if (!samplePlan.baselineByTeacher.has(teacher.id)) continue;
+  sampleTargetSum += sampleTargets.get(teacher.id) ?? 0;
+  sampleActualSum += teacherTotalFatigue(solvedExam, teacher);
+}
+const sampleScore = scoreSolverResult(sample, solved, samplePlan);
+assert.equal(sampleTargetSum, sampleActualSum);
+assert.equal(sampleTargetSum, 25790);
+assert.ok(Math.abs(sampleScore.maxTargetExcess - 190.22893772893747) < 1e-6);
+assert.ok(Math.abs(sampleScore.targetSSD - 1172623.3516483512) < 1e-4);
+
 console.log(
   JSON.stringify(
     {
@@ -272,11 +494,22 @@ console.log(
         invalidC7aRejected: true,
       },
       waterFill: Object.fromEntries(targets),
+      freshTeacherSkew: {
+        perPersonThisExam,
+        freshDuty,
+        veteranDuty,
+        cappedFresh: [cappedDuty("z1"), cappedDuty("z2")],
+        cappedVeteran: [cappedDuty("v1"), cappedDuty("v2")],
+      },
       sample: {
         assigned: solved.assignments.length,
         unassigned: solved.unassigned.length,
         validationErrors: solved.validationErrors.length,
         reassignScopePreserved: true,
+        targetSum: sampleTargetSum,
+        actualSum: sampleActualSum,
+        maxTargetExcess: sampleScore.maxTargetExcess,
+        targetSSD: sampleScore.targetSSD,
       },
     },
     null,

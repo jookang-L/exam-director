@@ -262,10 +262,10 @@ function SuggestionPanel({
           after={suggestion.after.selfStudySpread}
         />
         <Metric
-          label="전체 총피로도 편차"
+          label="기존 교사 총피로도 편차"
           before={suggestion.before.totalFatigueSpread}
           after={suggestion.after.totalFatigueSpread}
-          title="통계 대상 전체 교사 중 총피로도 최고점과 최저점의 차이입니다."
+          title="이전 곤란도가 있는 교사 중 총피로도 최고점과 최저점의 차이입니다. 이전 곤란도 0은 넣지 않습니다."
         />
       </div>
 

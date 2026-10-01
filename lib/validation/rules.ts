@@ -1,5 +1,6 @@
 import type { Assignment, Exam, ValidationIssue, ValidationSeverity } from "@/lib/types";
 import { evaluateAll, type ConstraintContext } from "@/lib/algorithm/constraints";
+import { conflictsByExclude } from "@/lib/algorithm/excludeConflicts";
 import { FATIGUE_SPREAD_WARNING_MIN } from "@/lib/fatigueWeights";
 import { teacherExamBurden } from "@/lib/algorithm/fatigue";
 import { nutritionTeacherSchedule } from "@/lib/algorithm/nutritionTeachers";
@@ -265,6 +266,25 @@ const ruleExcludeTeachers: RuleFn = (exam) => {
           "exclude.orphan",
           "warning",
           `제외 조건이 가리키는 교사를 찾을 수 없습니다 (id: ${e.teacherId}). STEP 7에서 제외를 다시 등록해주세요.`,
+        ),
+      );
+    }
+  }
+  const reported = new Set<string>();
+  for (const [id, conflicts] of conflictsByExclude(exam)) {
+    const rule = exam.excludes.find((e) => e.id === id);
+    const teacher = exam.teachers.find((t) => t.id === rule?.teacherId);
+    for (const c of conflicts) {
+      if (c.severity !== "warning") continue;
+      const pair = [id, c.otherId].sort().join("|");
+      if (reported.has(pair)) continue;
+      reported.add(pair);
+      issues.push(
+        makeIssue(
+          "exclude.conflict",
+          "warning",
+          `STEP 7 조건 충돌${teacher ? ` (${teacher.name}${rule?.date ? ` ${rule.date}` : ""})` : ""}: ${c.message}`,
+          teacher ? { teacherId: teacher.id } : undefined,
         ),
       );
     }

@@ -1,5 +1,5 @@
 import type { DutySlot, Exam, Teacher } from "@/lib/types";
-import { teacherExcludedAt } from "@/lib/algorithm/constraints";
+import { isDutyAllowRule, teacherExcludedAt } from "@/lib/algorithm/constraints";
 
 function excludeMatchesDutyColumn(
   exam: Exam,
@@ -8,6 +8,7 @@ function excludeMatchesDutyColumn(
   period: number,
 ): boolean {
   return exam.excludes.some((exclude) => {
+    if (isDutyAllowRule(exclude)) return false;
     if (exclude.teacherId !== teacherId) return false;
     if (exclude.roomId) return false;
     if (exclude.date && exclude.date !== date) return false;
@@ -33,6 +34,7 @@ export function getTeacherPeriodExcludeLabel(
   period: number,
 ): string | null {
   const match = exam.excludes.find((exclude) => {
+    if (isDutyAllowRule(exclude)) return false;
     if (exclude.teacherId !== teacherId) return false;
     if (exclude.roomId) return false;
     if (exclude.date && exclude.date !== date) return false;

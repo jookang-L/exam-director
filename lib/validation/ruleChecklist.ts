@@ -23,7 +23,7 @@ export const FINAL_RULE_CATALOG: Array<{
   required: boolean;
 }> = [
   { code: "CC", label: "CC", description: "같은 날·같은 교시에 교사 1명 1슬롯", required: true },
-  { code: "EX", label: "EX", description: "STEP 7 수동 제외 대상 배정 금지", required: true },
+  { code: "EX", label: "EX", description: "STEP 7 수동 제외·허용 조건 위반 배정 금지", required: true },
   { code: "C1", label: "C1", description: "보건교사 — 같은 교시 1명만", required: true },
   { code: "C4", label: "C4", description: "강사 — 부감독만 (하루 최대 3교시, C7b 면제)", required: true },
   { code: "C5", label: "C5", description: "시험 시작 전 학년 정규 수업 교시 배정 불가", required: true },

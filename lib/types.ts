@@ -89,6 +89,11 @@ export type Exclude = {
   period?: number;
   roomId?: string;
   reason?: string;
+  /**
+   * STEP 7 허용 조건. 값이 있으면 해당 시간대에 이 감독 종류(DutyType.id)만 맡을 수 있다.
+   * 없거나 비어 있으면 기존처럼 그 시간대 감독 전체 제외.
+   */
+  allowedDutyTypeIds?: string[];
 };
 
 export type Preassign = {
@@ -169,7 +174,7 @@ export const STEPS = [
   { id: "teachers", label: "STEP 4 교사명단", path: "teachers" },
   { id: "duties", label: "STEP 5 곤란도", path: "duties" },
   { id: "timetable", label: "STEP 6 시간표", path: "timetable" },
-  { id: "constraints", label: "STEP 7 제외조건", path: "constraints" },
+  { id: "constraints", label: "STEP 7 감독지정/제외", path: "constraints" },
   { id: "slots", label: "STEP 8 감독슬롯", path: "slots" },
   { id: "preassign", label: "STEP 9 우선/고정", path: "preassign" },
   { id: "validate", label: "STEP 10 사전검증", path: "validate" },

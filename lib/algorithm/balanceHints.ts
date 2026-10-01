@@ -1,6 +1,6 @@
 import type { Assignment, DutyTypeName, Exam, Teacher, ValidationIssue } from "@/lib/types";
 import { teacherTotalFatigue } from "./fatigue";
-import { isIncludedInAverageFatigue } from "./averageFatigue";
+import { hasNoPreviousFatigue, isIncludedInAverageFatigue } from "./averageFatigue";
 import { runFullValidation } from "@/lib/validation/rules";
 
 const MAX_CANDIDATES_TO_VALIDATE = 60;
@@ -407,9 +407,11 @@ function computeMetrics(
 ): BalanceHintMetrics {
   const nextExam = assignments === exam.assignments ? exam : { ...exam, assignments };
   const eligibleTeachers = exam.teachers.filter((teacher) => counts.has(teacher.id));
+  const fatigueTeachers = eligibleTeachers.filter((teacher) => !hasNoPreviousFatigue(teacher));
+  const fatiguePool = fatigueTeachers.length > 0 ? fatigueTeachers : eligibleTeachers;
   const hardValues = eligibleTeachers.map((teacher) => counts.get(teacher.id)?.hard ?? 0);
   const selfStudyValues = eligibleTeachers.map((teacher) => counts.get(teacher.id)?.selfStudy ?? 0);
-  const fatigueValues = eligibleTeachers.map((teacher) => teacherTotalFatigue(nextExam, teacher));
+  const fatigueValues = fatiguePool.map((teacher) => teacherTotalFatigue(nextExam, teacher));
   return {
     hardSpread: spread(hardValues),
     selfStudySpread: spread(selfStudyValues),

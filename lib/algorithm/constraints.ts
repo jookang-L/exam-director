@@ -142,6 +142,12 @@ export function timetableConflict(
   return null;
 }
 
+/** STEP 7 허용 조건 행인지 (허용 감독 종류가 지정됨). 아니면 전체 제외 행. */
+export function isDutyAllowRule(e: ExcludeT): boolean {
+  return (e.allowedDutyTypeIds?.length ?? 0) > 0;
+}
+
+/** 전체 제외 행만 해당. 허용 조건 행은 teacherAllowedDutyTypesAt에서 처리한다. */
 export function teacherExcludedAt(
   exam: Exam,
   teacher: Teacher,
@@ -150,6 +156,7 @@ export function teacherExcludedAt(
   roomId?: string,
 ): ExcludeT | null {
   for (const e of exam.excludes) {
+    if (isDutyAllowRule(e)) continue;
     if (e.teacherId !== teacher.id) continue;
     if (e.date && e.date !== date) continue;
     if (e.period != null && Number(e.period) !== period) continue;
@@ -157,6 +164,30 @@ export function teacherExcludedAt(
     return e;
   }
   return null;
+}
+
+/**
+ * 해당 시간대에 적용되는 허용 조건들의 교집합(허용 감독 종류 id).
+ * 적용되는 허용 조건이 없으면 null (제한 없음).
+ */
+export function teacherAllowedDutyTypesAt(
+  exam: Exam,
+  teacher: Teacher,
+  date: string,
+  period: number,
+  roomId?: string,
+): Set<string> | null {
+  let allowed = null as Set<string> | null;
+  for (const e of exam.excludes) {
+    if (!isDutyAllowRule(e)) continue;
+    if (e.teacherId !== teacher.id) continue;
+    if (e.date && e.date !== date) continue;
+    if (e.period != null && Number(e.period) !== period) continue;
+    if (e.roomId && roomId && e.roomId !== roomId) continue;
+    const ids = new Set(e.allowedDutyTypeIds);
+    allowed = allowed ? new Set([...allowed].filter((id) => ids.has(id))) : ids;
+  }
+  return allowed;
 }
 
 // C1: 보건교사는 같은 교시에 최대 1명만 감독 가능.
@@ -255,7 +286,7 @@ export function checkTimetableConflict(
   return OK;
 }
 
-// Exclude (STEP 7): manual exclusion.
+// Exclude (STEP 7): manual exclusion and duty-type allow rules.
 export function checkExcluded(
   ctx: ConstraintContext,
   slot: DutySlot,
@@ -266,6 +297,21 @@ export function checkExcluded(
     return {
       ok: false,
       reason: { code: "EX", message: ex.reason ? `제외 (${ex.reason})` : "수동 제외 대상" },
+    };
+  }
+  const allowed = teacherAllowedDutyTypesAt(ctx.exam, teacher, slot.date, slot.period, slot.roomId);
+  if (allowed && !allowed.has(slot.dutyTypeId)) {
+    const names = ctx.exam.dutyTypes.filter((d) => allowed.has(d.id)).map((d) => d.name);
+    const dutyName = ctx.exam.dutyTypes.find((d) => d.id === slot.dutyTypeId)?.name ?? "해당 감독";
+    return {
+      ok: false,
+      reason: {
+        code: "EX",
+        message:
+          names.length > 0
+            ? `이 시간대는 ${names.join("·")}만 가능합니다 (${dutyName} 불가)`
+            : `이 시간대는 허용 조건이 겹쳐 배정 가능한 감독 종류가 없습니다 (${dutyName} 불가)`,
+      },
     };
   }
   return OK;

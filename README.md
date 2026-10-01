@@ -58,7 +58,7 @@ Vercel에 그대로 push 하면 빌드되며, 데이터는 사용자 브라우�
 | 4 | `/exam/[id]/teachers` | 교사 명단 (Excel/CSV 업로드) |
 | 5 | `/exam/[id]/duties` | 감독 종류 / 곤란도 |
 | 6 | `/exam/[id]/timetable` | 교사 정규 수업 시간표 (두 가지 매핑 모드) |
-| 7 | `/exam/[id]/constraints` | 제외 조건 |
+| 7 | `/exam/[id]/constraints` | 특정 감독 지정/제외 |
 | 8 | `/exam/[id]/slots` | 감독 슬롯 자동 생성 |
 | 9 | `/exam/[id]/preassign` | 우선 / 고정 배정 |
 | 10 | `/exam/[id]/validate` | 사전 검증 (오류 / 경고 분리) |
@@ -255,7 +255,7 @@ STEP 12에서 내보낸 교사별 감독표를 **엑셀에서 수정한 뒤** �
 
 1. STEP 2 시험표·STEP 3 「시험표 기준 감독 수요 다시 채우기」
 2. STEP 4 역할(강사/보건/영양) 및 **영양교사 명단 순서** 확인
-3. STEP 6 시간표, STEP 7 제외 조건
+3. STEP 6 시간표, STEP 7 특정 감독 지정/제외
 4. STEP 8 슬롯 생성
 5. STEP 9 — 필수 배정은 **고정**으로
 6. **STEP 10** — 오류 0건 확인 (경고 검토)

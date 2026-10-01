@@ -3,13 +3,13 @@ import {
   DEFAULT_DUTY_WEIGHT_FALLBACK,
   ROLE_BALANCE_ALLOWED_SPREAD,
 } from "@/lib/fatigueWeights";
-import { isIncludedInAverageFatigue } from "./averageFatigue";
+import { hasNoPreviousFatigue, isIncludedInAverageFatigue } from "./averageFatigue";
 import { buildExamLookups, type ExamLookups } from "./constraintIndexes";
 import { timetableClassBurden } from "./timetableFatigue";
 import { buildFixedAssignments } from "./fixed";
 import {
+  buildAssignedMassTargets,
   buildBalancePlan,
-  waterFillTargets,
   type BalancePlan,
 } from "./targetFatigue";
 
@@ -70,15 +70,17 @@ function teacherTotalFatigueFast(exam: Exam, teacher: Teacher, lookups: ExamLook
   return (teacher.previousFatigueScore ?? 0) * exam.carryOverRatio + current;
 }
 
-/** 균형 집계 — eligible 교사만 (평균 누적도와 동일 기준) */
+/** 정·부 횟수는 균형 대상 전체, 총피로도 편차는 이전 곤란도가 있는 사람만. 신규만 있으면 전체를 쓴다. */
 export function computeBalanceSpreads(exam: Exam, lookups?: ExamLookups): BalanceSpreads {
   const lu = lookups ?? buildExamLookups(exam);
   const eligible = exam.teachers.filter((t) => isIncludedInAverageFatigue(exam, t));
+  const veterans = eligible.filter((t) => !hasNoPreviousFatigue(t));
+  const fatiguePool = veterans.length > 0 ? veterans : eligible;
   const { chief, assistant } = countChiefAssistant(exam.assignments, lu);
 
   const chiefVals = eligible.map((t) => chief.get(t.id) ?? 0);
   const assistantVals = eligible.map((t) => assistant.get(t.id) ?? 0);
-  const totalVals = eligible.map((t) => teacherTotalFatigueFast(exam, t, lu));
+  const totalVals = fatiguePool.map((t) => teacherTotalFatigueFast(exam, t, lu));
 
   return {
     chiefSpread: spread(chiefVals),
@@ -88,6 +90,7 @@ export function computeBalanceSpreads(exam: Exam, lookups?: ExamLookups): Balanc
   };
 }
 
+/** 목표 초과·SSD는 계획 목표가 아니라, 이번에 배정된 감독 점수로 다시 만든 목표를 쓴다. */
 export function scoreSolverResult(
   exam: Exam,
   result: {
@@ -101,33 +104,16 @@ export function scoreSolverResult(
   const trial = { ...exam, assignments: result.assignments };
   const spreads = computeBalanceSpreads(trial, lookups);
   const plan = providedPlan ?? buildScoreBalancePlan(exam, lookups);
+  const targets = buildAssignedMassTargets(exam, plan, result.assignments, lookups);
   const totals = new Map<string, number>();
-  const balanceTeachers: Teacher[] = [];
   for (const teacher of exam.teachers) {
     if (!plan.eligibleTeacherIds.has(teacher.id)) continue;
-    balanceTeachers.push(teacher);
     totals.set(teacher.id, teacherTotalFatigueFast(trial, teacher, lookups));
   }
-  const actualAdditionalWork = Math.max(
-    0,
-    balanceTeachers.reduce(
-      (sum, teacher) =>
-        sum +
-        (totals.get(teacher.id) ?? 0) -
-        (plan.baselineByTeacher.get(teacher.id) ?? 0),
-      0,
-    ),
-  );
-  const scoreTargets = waterFillTargets(
-    balanceTeachers,
-    plan.baselineByTeacher,
-    plan.capacityByTeacher,
-    actualAdditionalWork,
-  );
   let maxTargetExcess = 0;
   let targetSSD = 0;
   for (const [teacherId, total] of totals) {
-    const target = scoreTargets.get(teacherId) ?? total;
+    const target = targets.get(teacherId) ?? total;
     const delta = total - target;
     maxTargetExcess = Math.max(maxTargetExcess, delta);
     targetSSD += delta * delta;

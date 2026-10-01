@@ -9,7 +9,7 @@ export function FatigueSummaryBar({ stats }: { stats: AverageTotalFatigueResult 
         <div className="text-xs text-muted-foreground mb-1">평균 누적도</div>
         <div className="font-mono text-lg font-semibold">{stats.average.toFixed(1)}</div>
         <div className="text-xs text-muted-foreground mt-1">
-          {stats.count}명 · 강사·영양·평가담당·전체제외 제외
+          {`${stats.count}명 · 강사·영양·평가담당·전체제외${stats.veteransOnly ? "·이전 곤란도 0" : ""} 제외`}
         </div>
       </div>
       <div>
