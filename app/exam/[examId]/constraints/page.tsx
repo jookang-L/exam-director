@@ -78,7 +78,7 @@ export default function ConstraintsPage() {
         <CardHeader>
           <CardTitle>제외 조건</CardTitle>
           <CardDescription>
-            날짜/교시를 비워두면 해당 교사의 전체 감독이 제외됩니다.
+            날짜만 고르고 교시를 전체로 두면 그날 모든 교시가 제외됩니다. 날짜와 교시를 모두 전체로 두면 고사 기간 전체가 제외됩니다.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -110,13 +110,19 @@ export default function ConstraintsPage() {
             </div>
             <div>
               <label className="text-xs text-muted-foreground">교시 (선택)</label>
-              <Input
-                type="number"
-                min={1}
-                max={exam.periodCount}
-                value={period}
-                onChange={(e) => setPeriod(e.target.value)}
-              />
+              <Select value={period || "_none"} onValueChange={(v) => setPeriod(v === "_none" ? "" : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="전체" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">전체</SelectItem>
+                  {Array.from({ length: exam.periodCount }, (_, i) => i + 1).map((p) => (
+                    <SelectItem key={p} value={String(p)}>
+                      {p}교시
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <label className="text-xs text-muted-foreground">사유</label>
