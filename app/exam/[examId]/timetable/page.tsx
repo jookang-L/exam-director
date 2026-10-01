@@ -238,6 +238,11 @@ export default function TimetablePage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <Button variant="outline" asChild>
+            <a href="/templates/timetable-upload-template.xlsx" download="시간표_업로드_양식.xlsx">
+              양식 내려받기
+            </a>
+          </Button>
           <input
             type="file"
             accept=".xlsx,.csv"
