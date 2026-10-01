@@ -137,7 +137,7 @@ export default function BalanceHintsPage() {
             추천 기준
           </CardTitle>
           <CardDescription>
-            강사·영양교사와 STEP9 우선/고정 배정은 건드리지 않습니다. 후보마다 전체 규칙을 다시 검사하고,
+            강사·영양교사·평가담당과 STEP9 우선/고정 배정은 건드리지 않습니다. 후보마다 전체 규칙을 다시 검사하고,
             오류가 없는 추천만 표시합니다.
           </CardDescription>
         </CardHeader>

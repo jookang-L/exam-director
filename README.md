@@ -107,7 +107,7 @@ Vercel에 그대로 push 하면 빌드되며, 데이터는 사용자 브라우�
 
 `totalFatigue = previousFatigueScore × carryOverRatio + currentExamWeight`
 
-**균형 집계 대상** — 평균 누적도와 동일: **강사·영양·고사기간 전체 제외** 교사는 C6b·다회 선택 점수에서 제외 (`isIncludedInAverageFatigue`, `lib/algorithm/balanceScore.ts`)
+**균형 집계 대상** — 평균 누적도와 동일: **강사·영양·평가담당·고사기간 전체 제외** 교사는 C6b·다회 선택 점수에서 제외 (`isIncludedInAverageFatigue`, `lib/algorithm/balanceScore.ts`)
 
 ### STEP 11 실행 시
 
@@ -220,6 +220,7 @@ STEP 12에서 내보낸 교사별 감독표를 **엑셀에서 수정한 뒤** �
 | **강사** | **부감독만** (C4), 하루 **최대 3교시**, 가운데 자습 면제 |
 | **보건교사** | 같은 교시 **1명만** (C1) |
 | **영양교사** | 전체 일정에서 **2교시 부감독**, 교사당 **연속 2일** (C9) |
+| **평가담당** | 자동 배정에서 **모든 감독 제외**. STEP 12 수동 배정은 허용 |
 
 ### 영양교사 날짜 분배
 
@@ -230,7 +231,7 @@ STEP 12에서 내보낸 교사별 감독표를 **엑셀에서 수정한 뒤** �
 
 - 기준: STEP 2에 입력된 **모든 시험 과목**. 시험 반 수와 관계없이 해당 과목 교사는 그 날짜·교시의 모든 감독에서 제외
 - 예외: STEP 9 **우선/고정**으로 직접 지정한 교사·슬롯은 C8보다 우선
-- 교사 **교과**와 시험 **과목** 매칭: 쉼표(`,`)로 복수 교과, **공백 무시** (`화법과작문` ↔ `화법과 작문`)
+- 교사 **교과**와 시험 **과목** 매칭: 쉼표(`,`)로 복수 교과. **띄어쓰기**와 **숫자 표기**(Ⅰ·I·1, Ⅱ·II·2) 차이는 같은 과목 (`현대사회와 윤리` ↔ `현대사회와윤리`, `미적분Ⅰ` ↔ `미적분1`)
 - **다른 이름**(예: `화작`)은 매칭되지 않음 — STEP 2·4에서 동일하게 입력
 
 ## STEP 9 우선 vs 고정
@@ -293,7 +294,7 @@ STEP 12에서 내보낸 교사별 감독표를 **엑셀에서 수정한 뒤** �
 | `lib/algorithm/balanceScore.ts` | 다회 탐색 시 정·부·목표 초과·SSD 균형 점수 |
 | `lib/algorithm/solverSeeds.ts` | 고정·랜덤 seed 목록 생성 및 균형 강화 탐색 상한 |
 | `lib/algorithm/runSolverAsync.ts` | Web Worker 비동기 솔버 |
-| `lib/algorithm/averageFatigue.ts` | 평균 누적도 집계 (강사·영양·고사기간 전체 제외 교사 제외) |
+| `lib/algorithm/averageFatigue.ts` | 평균 누적도 집계 (강사·영양·평가담당·고사기간 전체 제외 교사 제외) |
 | `lib/algorithm/nutritionTeachers.ts` | 영양교사 날짜 분배 |
 | `lib/algorithm/examSubjectRules.ts` | C8 과목 매칭 기준 |
 | `lib/grid/teacherDayGrid.ts` | STEP 12 교사×교시 그리드 모델 |

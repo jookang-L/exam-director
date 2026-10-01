@@ -18,6 +18,7 @@ import { isIncludedInAverageFatigue } from "./averageFatigue";
 import { isBetterSolverScore, scoreSolverResult, teachersForBalanceStats } from "./balanceScore";
 import {
   evaluateAll,
+  isEvaluationOfficer,
   type ConstraintContext,
   type ConstraintReason,
 } from "./constraints";
@@ -323,9 +324,10 @@ export function runSolver(exam: Exam, options?: SolverOptions): SolverResult {
   const allowedTeacherIds = options?.allowedTeacherIds
     ? new Set(options.allowedTeacherIds)
     : null;
+  const autoTeachers = exam.teachers.filter((teacher) => !isEvaluationOfficer(teacher));
   const candidateTeachers = allowedTeacherIds
-    ? exam.teachers.filter((teacher) => allowedTeacherIds.has(teacher.id))
-    : exam.teachers;
+    ? autoTeachers.filter((teacher) => allowedTeacherIds.has(teacher.id))
+    : autoTeachers;
   const lookups = buildExamLookups(exam);
   const teacherBaseFatigue = buildTeacherBaseFatigue(exam);
   const initial = buildFixedAssignments(exam);

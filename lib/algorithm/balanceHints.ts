@@ -345,7 +345,11 @@ function moveAssignmentTeacher(
 }
 
 function isSwappableTeacher(teacher: Teacher): boolean {
-  return teacher.roleType !== "강사" && teacher.roleType !== "영양교사";
+  return (
+    teacher.roleType !== "강사" &&
+    teacher.roleType !== "영양교사" &&
+    teacher.roleType !== "평가담당"
+  );
 }
 
 function swapAssignmentTeachers(

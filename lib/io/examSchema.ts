@@ -6,7 +6,7 @@ const teacherSchema = z.object({
   id: z.string(),
   name: z.string(),
   subject: z.string(),
-  roleType: z.enum(["정교사", "기간제", "강사", "보건교사", "영양교사"]),
+  roleType: z.enum(["정교사", "기간제", "강사", "보건교사", "영양교사", "평가담당"]),
   homeroomGrade: gradeSchema.optional(),
   homeroomClass: z.number().optional(),
   previousFatigueScore: z.number(),

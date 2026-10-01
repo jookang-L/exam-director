@@ -6,9 +6,63 @@ export function normalizeSubject(subject: string): string {
   return subject.trim();
 }
 
-/** 비교용 — 공백 제거 (화법과 작문 ↔ 화법과작문) */
+const UNICODE_ROMAN_TO_DIGIT: Record<string, string> = {
+  "Ⅰ": "1",
+  "Ⅱ": "2",
+  "Ⅲ": "3",
+  "Ⅳ": "4",
+  "Ⅴ": "5",
+  "Ⅵ": "6",
+  "Ⅶ": "7",
+  "Ⅷ": "8",
+  "Ⅸ": "9",
+  "Ⅹ": "10",
+  "Ⅺ": "11",
+  "Ⅻ": "12",
+  "ⅰ": "1",
+  "ⅱ": "2",
+  "ⅲ": "3",
+  "ⅳ": "4",
+  "ⅴ": "5",
+  "ⅵ": "6",
+  "ⅶ": "7",
+  "ⅷ": "8",
+  "ⅸ": "9",
+  "ⅹ": "10",
+  "ⅺ": "11",
+  "ⅻ": "12",
+};
+
+/** 끝의 영문 로마숫자만. 긴 표기부터 맞춰 Ⅱ·II가 I로 잘리지 않게 한다. */
+const ASCII_ROMAN_SUFFIX: ReadonlyArray<readonly [string, string]> = [
+  ["XII", "12"],
+  ["XI", "11"],
+  ["IX", "9"],
+  ["VIII", "8"],
+  ["VII", "7"],
+  ["VI", "6"],
+  ["IV", "4"],
+  ["X", "10"],
+  ["V", "5"],
+  ["III", "3"],
+  ["II", "2"],
+  ["I", "1"],
+];
+
+/** 비교용 — 공백 제거, 전각 숫자·로마숫자를 아라비아 숫자로 */
 export function canonicalSubject(subject: string): string {
-  return normalizeSubject(subject).replace(/\s+/g, "");
+  const compact = normalizeSubject(subject).replace(/[\s\u3000\u00a0]+/g, "");
+  const digits = compact.replace(/[０-９]/g, (ch) =>
+    String.fromCharCode(ch.charCodeAt(0) - 0xfee0),
+  );
+  const roman = digits.replace(/[Ⅰ-Ⅻⅰ-ⅻ]/g, (ch) => UNICODE_ROMAN_TO_DIGIT[ch] ?? ch);
+  const upper = roman.toUpperCase();
+  for (const [suffix, digit] of ASCII_ROMAN_SUFFIX) {
+    if (upper.endsWith(suffix) && roman.length > suffix.length) {
+      return roman.slice(0, roman.length - suffix.length) + digit;
+    }
+  }
+  return roman;
 }
 
 function subjectKey(subject: string): string {

@@ -31,7 +31,7 @@ export type SolverRunScore = {
   targetSSD: number;
 };
 
-/** 평균 누적도와 동일 — 강사·영양·고사기간 전체 제외 제외. 해당 후보 없으면 전체 후보 사용 */
+/** 평균 누적도와 동일 — 강사·영양·평가담당·고사기간 전체 제외 제외. 해당 후보 없으면 전체 후보 사용 */
 export function teachersForBalanceStats(exam: Exam, candidates: Teacher[]): Teacher[] {
   const included = candidates.filter((t) => isIncludedInAverageFatigue(exam, t));
   return included.length > 0 ? included : candidates;

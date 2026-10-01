@@ -7,7 +7,7 @@ export { DEFAULT_DUTY_TYPES } from "./fatigueWeights";
 
 export type Grade = 1 | 2 | 3;
 
-export type RoleType = "정교사" | "기간제" | "강사" | "보건교사" | "영양교사";
+export type RoleType = "정교사" | "기간제" | "강사" | "보건교사" | "영양교사" | "평가담당";
 
 export type DutyTypeName =
   | "정감독"

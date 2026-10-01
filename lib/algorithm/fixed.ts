@@ -5,7 +5,7 @@ import type {
   Teacher,
 } from "@/lib/types";
 import { newId } from "@/lib/types";
-import { evaluateAll, type ConstraintContext } from "@/lib/algorithm/constraints";
+import { evaluateAll, isEvaluationOfficer, type ConstraintContext } from "@/lib/algorithm/constraints";
 import { nutritionTeacherSchedule } from "@/lib/algorithm/nutritionTeachers";
 
 function canAssignTeacherToSlot(
@@ -92,6 +92,7 @@ export function buildFixedAssignments(exam: Exam): Assignment[] {
   // 2) Rule 2: 각 학년 시험 첫날 1교시 → 담임 자습감독
   if (selfStudyId) {
     for (const teacher of exam.teachers) {
+      if (isEvaluationOfficer(teacher)) continue;
       if (!teacher.homeroomGrade || !teacher.homeroomClass) continue;
       const firstDate = getFirstExamDate(exam, teacher.homeroomGrade);
       if (!firstDate) continue;

@@ -12,7 +12,7 @@ export function FatigueSummaryLine({ stats, compact, className }: Props) {
 
   const basis = compact
     ? `(${stats.count}명)`
-    : `(${stats.count}명 · 강사·영양·전체제외 제외)`;
+    : `(${stats.count}명 · 강사·영양·평가담당·전체제외 제외)`;
 
   const highest = stats.highest
     ? `최고 ${stats.highest.total.toFixed(1)}(${stats.highest.teacher.name})`

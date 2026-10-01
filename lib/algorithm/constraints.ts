@@ -84,6 +84,11 @@ function isLecturer(t: Teacher): boolean {
   return t.roleType === "강사";
 }
 
+/** 자동 배정 대상에서 제외. 수동 배정은 evaluateAll로 막지 않는다. */
+export function isEvaluationOfficer(t: Teacher): boolean {
+  return t.roleType === "평가담당";
+}
+
 function findDutyType(exam: Exam, id: string): DutyType | undefined {
   return exam.dutyTypes.find((d) => d.id === id);
 }
