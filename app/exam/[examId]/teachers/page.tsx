@@ -138,16 +138,23 @@ export default function TeachersPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <input
-            type="file"
-            accept=".xlsx,.csv"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handleFile(f);
-              e.currentTarget.value = "";
-            }}
-            className="text-sm"
-          />
+          <div className="flex flex-col gap-8">
+            <input
+              type="file"
+              accept=".xlsx,.csv"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleFile(f);
+                e.currentTarget.value = "";
+              }}
+              className="text-sm"
+            />
+            <Button variant="outline" className="w-fit" asChild>
+              <a href="/templates/teacher-upload-template.xlsx" download="교사명단_업로드_양식.xlsx">
+                양식 내려받기
+              </a>
+            </Button>
+          </div>
 
           {previews && previews.length > 0 ? (
             <div className="space-y-3">

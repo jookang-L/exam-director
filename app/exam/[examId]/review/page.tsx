@@ -38,7 +38,7 @@ import {
 } from "@/lib/validation/acknowledgedWarnings";
 import { newId } from "@/lib/types";
 import type { Assignment, DutySlot, Exam, Teacher } from "@/lib/types";
-import { cn, shortDate, weekdayKo } from "@/lib/utils";
+import { cn, dateWithWeekday } from "@/lib/utils";
 import {
   buildTeacherSlotLookup,
   buildTeacherClassLookup,
@@ -192,7 +192,7 @@ export default function ReviewPage() {
     void reassignSubsetAsync(exam, slotIds, { allowedTeacherIds })
       .then((next) => {
         m.replaceAssignments(next);
-        toast({ title: `${shortDate(selectedDay)} 재배정 완료`, variant: "success" });
+        toast({ title: `${dateWithWeekday(selectedDay)} 재배정 완료`, variant: "success" });
       })
       .catch((err) => {
         toast({
@@ -346,7 +346,7 @@ export default function ReviewPage() {
                 variant={d === selectedDay ? "default" : "outline"}
                 onClick={() => setSelectedDay(d)}
               >
-                {shortDate(d)} ({weekdayKo(d)})
+                {dateWithWeekday(d)}
               </Button>
             ))}
             <div className="flex-1" />
@@ -591,7 +591,7 @@ function TeacherDayGrid({
     <Card>
       <CardHeader className="pb-2">
         <CardTitle>
-          {shortDate(date)} ({weekdayKo(date)}) — 교사별 감독표
+          {dateWithWeekday(date)} — 교사별 감독표
         </CardTitle>
         <CardDescription className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span>
@@ -676,7 +676,7 @@ function TeacherDayGrid({
                     colSpan={colCount}
                     className="border bg-muted p-1 text-center font-semibold"
                   >
-                    {shortDate(date)} ({weekdayKo(date)})
+                    {dateWithWeekday(date)}
                   </th>
                 </tr>
                 <tr>
@@ -1201,7 +1201,7 @@ function EmptyTeacherCellEditor({
     <div className="space-y-2">
       <header className="text-xs">
         <div className="font-semibold">
-          {teacher.name} → {shortDate(date)} {period}교시 · {dutyTypeName}
+          {teacher.name} → {dateWithWeekday(date)} {period}교시 · {dutyTypeName}
         </div>
         <div className="text-muted-foreground">배정할 고사실을 선택하세요.</div>
       </header>
@@ -1304,7 +1304,7 @@ function SlotEditor({
     <div className="space-y-3">
       <header className="text-xs">
         <div className="font-semibold">
-          {shortDate(slot.date)} {slot.period}교시 · {room}
+          {dateWithWeekday(slot.date)} {slot.period}교시 · {room}
         </div>
         <div className="text-muted-foreground">{dt}</div>
       </header>

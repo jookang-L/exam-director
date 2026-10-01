@@ -6,7 +6,7 @@ import {
   teacherGridPeriodGroupsForDate,
   type TeacherGridPeriodGroup,
 } from "@/lib/grid/teacherDayGrid";
-import { shortDate, weekdayKo } from "@/lib/utils";
+import { dateWithWeekday } from "@/lib/utils";
 
 export const TEACHER_GRID_HEADER_TOP = 2;
 export const TEACHER_GRID_HEADER_BOTTOM = 5;
@@ -80,7 +80,7 @@ export function buildTeacherGridLayout(
       const periodNums = groups.map((g) => g.period);
       return {
         date,
-        label: `${shortDate(date)} (${weekdayKo(date)})`,
+        label: dateWithWeekday(date),
         groups: layoutGroups,
         colStart,
         colEnd: col - 1,

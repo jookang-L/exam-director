@@ -1,6 +1,6 @@
 import type { Assignment, DutySlot, Exam } from "@/lib/types";
 import { nutritionTeacherSchedule } from "@/lib/algorithm/nutritionTeachers";
-import { shortDate } from "@/lib/utils";
+import { dateWithWeekday } from "@/lib/utils";
 
 function findDutyTypeIdByName(exam: Exam, name: string): string | undefined {
   return exam.dutyTypes.find((d) => d.name === name)?.id;
@@ -62,7 +62,7 @@ export function checkC2Compliance(exam: Exam, assignments: Assignment[]): string
     );
     if (!slot) {
       failures.push(
-        `${teacher.name}: ${shortDate(firstDate)} 1교시 ${teacher.homeroomGrade}-${teacher.homeroomClass}반 자습감독 슬롯 없음`,
+        `${teacher.name}: ${dateWithWeekday(firstDate)} 1교시 ${teacher.homeroomGrade}-${teacher.homeroomClass}반 자습감독 슬롯 없음`,
       );
       continue;
     }
@@ -70,7 +70,7 @@ export function checkC2Compliance(exam: Exam, assignments: Assignment[]): string
     const assigned = bySlot.get(slot.id);
     if (!assigned || assigned.teacherId !== teacher.id) {
       failures.push(
-        `${teacher.name}: ${shortDate(firstDate)} 1교시 본인 반(${teacher.homeroomGrade}-${teacher.homeroomClass}) 자습감독 — 기대 ${teacher.name}, 실제 ${teacherName(exam, assigned?.teacherId)}`,
+        `${teacher.name}: ${dateWithWeekday(firstDate)} 1교시 본인 반(${teacher.homeroomGrade}-${teacher.homeroomClass}) 자습감독 — 기대 ${teacher.name}, 실제 ${teacherName(exam, assigned?.teacherId)}`,
       );
     }
   }
@@ -101,7 +101,7 @@ export function checkC9ScheduleCompliance(exam: Exam, assignments: Assignment[])
         );
       });
       if (!ok) {
-        failures.push(`${teacher.name}: ${shortDate(date)} 2교시 부감독 미배정`);
+        failures.push(`${teacher.name}: ${dateWithWeekday(date)} 2교시 부감독 미배정`);
       }
     }
   }

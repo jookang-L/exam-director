@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { StepNavButtons } from "@/components/wizard/WizardFrame";
 import { RefreshCw, Trash2 } from "lucide-react";
 import { generateDutySlots } from "@/lib/algorithm/slots";
-import { shortDate, weekdayKo } from "@/lib/utils";
+import { dateWithWeekday } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 
 export default function SlotsPage() {
@@ -79,7 +79,7 @@ export default function SlotsPage() {
               return (
                 <div key={date}>
                   <h3 className="font-medium mb-1">
-                    {shortDate(date)} ({weekdayKo(date)}) — {day.length}개
+                    {dateWithWeekday(date)} — {day.length}개
                   </h3>
                   <div className="flex flex-wrap gap-1">
                     {periods.map((p) => {

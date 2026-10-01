@@ -19,7 +19,7 @@ import {
   type TeacherGridImportResult,
 } from "@/lib/io/teacherGridExcelImport";
 import { c7bConfirmMessage } from "@/lib/algorithm/manualAssignValidation";
-import { shortDate } from "@/lib/utils";
+import { dateWithWeekday } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 
 export default function FinalCheckPage() {
@@ -330,7 +330,7 @@ export default function FinalCheckPage() {
                   severity: issue.severity,
                   message: issue.message,
                   meta: issue.target?.date
-                    ? `위치: ${shortDate(issue.target.date)}${issue.target.period ? ` ${issue.target.period}교시` : ""}`
+                    ? `위치: ${dateWithWeekday(issue.target.date)}${issue.target.period ? ` ${issue.target.period}교시` : ""}`
                     : issue.ruleId,
                 }))}
                 variant="error"

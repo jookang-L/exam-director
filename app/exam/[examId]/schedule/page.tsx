@@ -16,7 +16,7 @@ import {
   parseClassesDisplayInput,
   specialRoomNamesForGrade,
 } from "@/lib/roomClassMap";
-import { eachDate, shortDate, weekdayKo, cn } from "@/lib/utils";
+import { cn, dateWithWeekday, eachDate } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -122,7 +122,7 @@ export default function SchedulePage() {
                   <SelectContent>
                     {allDates.map((d) => (
                       <SelectItem key={d} value={d}>
-                        {shortDate(d)} ({weekdayKo(d)})
+                        {dateWithWeekday(d)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -241,7 +241,7 @@ export default function SchedulePage() {
                       className={cn("border-t border-border/60 transition-colors", GRADE_ROW_CLASS[s.grade])}
                     >
                       <td className="p-2 whitespace-nowrap">
-                        {shortDate(s.date)} ({weekdayKo(s.date)})
+                        {dateWithWeekday(s.date)}
                       </td>
                       <td className="p-2">{s.period}교시</td>
                       <td className="p-2 font-medium">{s.grade}학년</td>

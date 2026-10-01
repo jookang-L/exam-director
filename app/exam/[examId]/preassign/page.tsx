@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { shortDate } from "@/lib/utils";
+import { dateWithWeekday } from "@/lib/utils";
 import { Trash2, Plus } from "lucide-react";
 
 export default function PreassignPage() {
@@ -69,7 +69,7 @@ export default function PreassignPage() {
                     <tr key={p.id} className="border-t">
                       <td className="p-2">{teacher?.name ?? p.teacherId}</td>
                       <td className="p-2">
-                        {slot ? `${shortDate(slot.date)} ${slot.period}교시 ${room} · ${dt}` : "?"}
+                        {slot ? `${dateWithWeekday(slot.date)} ${slot.period}교시 ${room} · ${dt}` : "?"}
                       </td>
                       <td className="p-2">{p.priority === "fixed" ? "고정" : "우선"}</td>
                       <td className="p-2">{p.reason ?? ""}</td>
@@ -151,7 +151,7 @@ function PreassignForm({
               const dt = exam.dutyTypes.find((d) => d.id === s.dutyTypeId)?.name ?? "";
               return (
                 <SelectItem key={s.id} value={s.id}>
-                  {shortDate(s.date)} {s.period}교시 · {room} · {dt}
+                  {dateWithWeekday(s.date)} {s.period}교시 · {room} · {dt}
                 </SelectItem>
               );
             })}

@@ -1,7 +1,7 @@
 "use client";
 
 import type { Exam } from "@/lib/types";
-import { shortDate, weekdayKo } from "@/lib/utils";
+import { dateWithWeekday } from "@/lib/utils";
 import { periodDutyRowsForDate } from "@/lib/grid/periodDutyRows";
 
 export function FullGridPrint({ exam }: { exam: Exam }) {
@@ -14,7 +14,7 @@ export function FullGridPrint({ exam }: { exam: Exam }) {
       {dates.map((date) => (
         <section key={date} className="mb-6 print-page-break">
           <h2 className="text-lg font-semibold mb-2">
-            {shortDate(date)} ({weekdayKo(date)})
+            {dateWithWeekday(date)}
           </h2>
           <table className="w-full text-xs border-collapse">
             <thead>
@@ -78,7 +78,7 @@ export function DailyPrint({ exam, dates }: { exam: Exam; dates: string[] }) {
           <header className="mb-3">
             <h1 className="text-xl font-bold">{exam.name}</h1>
             <h2 className="text-lg">
-              {shortDate(date)} ({weekdayKo(date)}) 일별 감독표
+              {dateWithWeekday(date)} 일별 감독표
             </h2>
           </header>
           <DayTable exam={exam} date={date} />
@@ -202,7 +202,7 @@ export function TeacherPrint({ exam, teacherIds }: { exam: Exam; teacherIds: str
                     return (
                       <tr key={a.id}>
                         <td className="border p-1">
-                          {shortDate(slot.date)} ({weekdayKo(slot.date)})
+                          {dateWithWeekday(slot.date)}
                         </td>
                         <td className="border p-1">{slot.period}교시</td>
                         <td className="border p-1">{room?.name ?? "?"}</td>

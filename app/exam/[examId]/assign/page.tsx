@@ -24,7 +24,7 @@ import { computeAverageTotalFatigue } from "@/lib/algorithm/averageFatigue";
 import { FatigueSummaryBar } from "@/components/FatigueSummaryBar";
 import { TeacherWorkloadTable } from "@/components/TeacherWorkloadTable";
 import { toast } from "@/components/ui/use-toast";
-import { shortDate, weekdayKo } from "@/lib/utils";
+import { dateWithWeekday } from "@/lib/utils";
 
 export default function AssignPage() {
   const exam = useExam();
@@ -295,7 +295,7 @@ export default function AssignPage() {
               <tbody>
                 {dateGroups.map(([date, { total, assigned }]) => (
                   <tr key={date} className="border-t">
-                    <td className="p-2">{shortDate(date)} ({weekdayKo(date)})</td>
+                    <td className="p-2">{dateWithWeekday(date)}</td>
                     <td className="p-2">{total}</td>
                     <td className="p-2">{assigned}</td>
                     <td className="p-2">

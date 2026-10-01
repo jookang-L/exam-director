@@ -22,7 +22,7 @@ import {
   loadAcknowledgedWarningKeys,
 } from "@/lib/validation/acknowledgedWarnings";
 import { toast } from "@/components/ui/use-toast";
-import { shortDate } from "@/lib/utils";
+import { dateWithWeekday } from "@/lib/utils";
 
 export default function BalanceHintsPage() {
   const exam = useExam();
@@ -228,7 +228,7 @@ function SuggestionPanel({
               {warningCount > 0 ? `주의 · 경고 ${warningCount}건` : "규칙 검증 통과"}
             </Badge>
             <span className="text-sm text-muted-foreground">
-              {shortDate(suggestion.date)} {suggestion.period}교시
+              {dateWithWeekday(suggestion.date)} {suggestion.period}교시
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -477,7 +477,7 @@ function sortWarningsForDisplay(warnings: ValidationIssue[]): ValidationIssue[] 
 
 function formatWarningPrefix(warning: ValidationIssue): string {
   const parts = [
-    warning.target?.date ? shortDate(warning.target.date) : null,
+    warning.target?.date ? dateWithWeekday(warning.target.date) : null,
     warning.target?.period ? `${warning.target.period}교시` : null,
     extractWarningTeacher(warning.message) || null,
   ].filter(Boolean);

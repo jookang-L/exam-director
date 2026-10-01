@@ -17,7 +17,7 @@ import {
   mergeMissingDefaultRooms,
 } from "@/lib/defaultRooms";
 import { isClassRoom, isGradeColumnStart, roomHeaderLines } from "@/lib/roomDisplay";
-import { eachDate, shortDate, weekdayKo } from "@/lib/utils";
+import { dateWithWeekday, eachDate } from "@/lib/utils";
 
 function RoomHeaderCell({ name }: { name: string }) {
   const { line1, line2 } = roomHeaderLines(name);
@@ -266,7 +266,7 @@ export default function RoomsPage() {
                       dateIdx % 2 === 0 ? "bg-muted/70" : "bg-muted/50"
                     }`}
                   >
-                    {shortDate(date)} ({weekdayKo(date)})
+                    {dateWithWeekday(date)}
                   </header>
                   <div className="w-full overflow-x-auto">
                     <table className="min-w-max text-sm border-collapse">

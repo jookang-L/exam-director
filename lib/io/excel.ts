@@ -2,7 +2,7 @@ import ExcelJS from "exceljs";
 import type { Exam } from "@/lib/types";
 import { teacherDutyWeight, teacherExamBurden } from "@/lib/algorithm/fatigue";
 import { periodDutyRowsForDate } from "@/lib/grid/periodDutyRows";
-import { downloadBlob, shortDate, weekdayKo } from "@/lib/utils";
+import { dateWithWeekday, downloadBlob } from "@/lib/utils";
 
 export type SheetPreview = {
   sheetName: string;
@@ -97,7 +97,7 @@ function uniqueDates(exam: Exam): string[] {
 
 /** Excel 시트명: `/` 등 금지 문자 제거, 31자 제한 */
 function dailySheetTabName(date: string, used: Set<string>): string {
-  const base = `${shortDate(date).replace(/\//g, ".")}(${weekdayKo(date)})`;
+  const base = dateWithWeekday(date).replace(/\//g, ".");
   let name = base.slice(0, 31);
   let n = 2;
   while (used.has(name)) {
@@ -119,7 +119,7 @@ function buildDailySheet(ws: ExcelJS.Worksheet, exam: Exam, date: string) {
   const periods = Array.from({ length: exam.periodCount }, (_, i) => i + 1);
   const dutyRows = periodDutyRowsForDate(exam, date, periods);
   const colCount = 2 + exam.rooms.length;
-  const title = `${exam.name || "시험"} — ${shortDate(date)} (${weekdayKo(date)})`;
+  const title = `${exam.name || "시험"} — ${dateWithWeekday(date)}`;
 
   ws.mergeCells(1, 1, 1, colCount);
   const titleCell = ws.getCell(1, 1);

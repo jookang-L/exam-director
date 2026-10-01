@@ -28,6 +28,14 @@ export function weekdayKo(d: string): string {
   return ["일", "월", "화", "수", "목", "금", "토"][date.getDay()];
 }
 
+/** 화면·출력용. 예: 5/12(화요일) */
+export function dateWithWeekday(d: string): string {
+  const day = shortDate(d);
+  const wd = weekdayKo(d);
+  if (!wd) return day;
+  return `${day}(${wd}요일)`;
+}
+
 export function eachDate(startISO: string, endISO: string): string[] {
   const out: string[] = [];
   const start = new Date(startISO);

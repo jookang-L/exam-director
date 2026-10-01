@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { StepNavButtons } from "@/components/wizard/WizardFrame";
 import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import { runPreflight, hasErrors } from "@/lib/validation/rules";
-import { shortDate } from "@/lib/utils";
+import { dateWithWeekday } from "@/lib/utils";
 
 export default function ValidatePage() {
   const exam = useExam();
@@ -77,7 +77,7 @@ export default function ValidatePage() {
                       <p className="text-sm font-medium">{i.message}</p>
                       {i.target?.date ? (
                         <p className="text-xs text-muted-foreground">
-                          위치: {shortDate(i.target.date)}
+                          위치: {dateWithWeekday(i.target.date)}
                           {i.target.period ? ` ${i.target.period}교시` : ""}
                         </p>
                       ) : null}

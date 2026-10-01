@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { eachDate, shortDate, weekdayKo } from "@/lib/utils";
+import { dateWithWeekday, eachDate } from "@/lib/utils";
 import { Trash2, Plus } from "lucide-react";
 
 export default function ConstraintsPage() {
@@ -102,7 +102,7 @@ export default function ConstraintsPage() {
                   <SelectItem value="_none">전체</SelectItem>
                   {allDates.map((d) => (
                     <SelectItem key={d} value={d}>
-                      {shortDate(d)} ({weekdayKo(d)})
+                      {dateWithWeekday(d)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -164,7 +164,7 @@ export default function ConstraintsPage() {
                   return (
                     <tr key={e.id} className="border-t">
                       <td className="p-2">{teacher?.name ?? e.teacherId}</td>
-                      <td className="p-2">{e.date ? shortDate(e.date) : "전체"}</td>
+                      <td className="p-2">{e.date ? dateWithWeekday(e.date) : "전체"}</td>
                       <td className="p-2">{e.period ?? "전체"}</td>
                       <td className="p-2">{e.reason ?? ""}</td>
                       <td className="p-2">
