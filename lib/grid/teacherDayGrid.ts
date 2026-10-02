@@ -1,5 +1,6 @@
 import type { Assignment, DutySlot, Exam, ExamSlot, Grade, Teacher, TeacherTimetable } from "@/lib/types";
 import { teacherTotalFatigue } from "@/lib/algorithm/fatigue";
+import { timetableClassBurden } from "@/lib/algorithm/timetableFatigue";
 import { timetableConflict } from "@/lib/algorithm/constraints";
 import { compareDutyTypesByDisplayOrder } from "@/lib/grid/periodDutyRows";
 
@@ -31,6 +32,8 @@ export type TeacherDutyCounts = {
   assistant: number;
   hall: number;
   selfStudy: number;
+  /** 정규 수업 곤란도 (수업 1회당 점수 합) */
+  classBurden: number;
 };
 
 export type TeacherFatigueBreakdown = {
@@ -53,23 +56,20 @@ export const TEACHER_GRID_DUTY_COL_CLASS =
 
 /** 교사명 열 */
 export const TEACHER_GRID_NAME_COL_CLASS =
-  "w-[4rem] min-w-[4rem] max-w-[4rem] box-border";
+  "w-[3.75rem] min-w-[3.75rem] max-w-[3.75rem] box-border";
 
 /** 피로도 요약 열 */
 export const TEACHER_GRID_FATIGUE_COL_CLASS =
-  "w-[2.5rem] min-w-[2.5rem] max-w-[2.5rem] box-border";
+  "w-[2.25rem] min-w-[2.25rem] max-w-[2.25rem] box-border";
 
-/** 정·부·복도·자습 횟수 요약 열 */
+/** 정·부·복도·자습·수업 요약 열 */
 export const TEACHER_GRID_COUNT_COL_CLASS =
   "w-[2.1rem] min-w-[2.1rem] max-w-[2.1rem] box-border";
 
-export const TEACHER_GRID_NAME_COL_REM = 4;
-export const TEACHER_GRID_FATIGUE_COL_REM = 2.5;
+export const TEACHER_GRID_NAME_COL_REM = 3.75;
+export const TEACHER_GRID_FATIGUE_COL_REM = 2.25;
 export const TEACHER_GRID_FATIGUE_COL_COUNT = 3;
 export const TEACHER_GRID_COUNT_COL_REM = 2.1;
-export const TEACHER_GRID_SUMMARY_COL_COUNT = 4;
-export const TEACHER_GRID_FIXED_COL_COUNT =
-  1 + TEACHER_GRID_FATIGUE_COL_COUNT + TEACHER_GRID_SUMMARY_COL_COUNT;
 
 export const TEACHER_GRID_FATIGUE_COLUMNS = [
   { key: "previous", label: "이전", title: "이전피로도" },
@@ -82,7 +82,19 @@ export const TEACHER_GRID_DUTY_COUNT_COLUMNS = [
   { key: "assistant", label: "부", dutyName: "부감독" },
   { key: "hall", label: "복도", dutyName: "복도감독" },
   { key: "selfStudy", label: "자습", dutyName: "자습감독" },
+  { key: "classBurden", label: "수업", dutyName: "수업", title: "수업 곤란도 (수업 1회당 30점)" },
 ] as const;
+
+/** 요약 열 머리글·셀의 설명 (감독 열은 "○○ 횟수", 수업 열은 곤란도). */
+export function teacherGridCountColumnTitle(
+  col: (typeof TEACHER_GRID_DUTY_COUNT_COLUMNS)[number],
+): string {
+  return "title" in col ? col.title : `${col.dutyName} 횟수`;
+}
+
+export const TEACHER_GRID_SUMMARY_COL_COUNT = TEACHER_GRID_DUTY_COUNT_COLUMNS.length;
+export const TEACHER_GRID_FIXED_COL_COUNT =
+  1 + TEACHER_GRID_FATIGUE_COL_COUNT + TEACHER_GRID_SUMMARY_COL_COUNT;
 
 /** STEP 12 교사별 감독표 스크롤 영역 (기존 min(70vh,900px) 대비 약 2배) */
 export const TEACHER_GRID_SCROLL_CLASS =
@@ -286,7 +298,13 @@ export function buildTeacherSlotLookup(
 export function teacherDutyCounts(exam: Exam, teacherId: string): TeacherDutyCounts {
   const slotById = new Map(exam.dutySlots.map((slot) => [slot.id, slot]));
   const dutyById = new Map(exam.dutyTypes.map((duty) => [duty.id, duty.name]));
-  const counts: TeacherDutyCounts = { chief: 0, assistant: 0, hall: 0, selfStudy: 0 };
+  const counts: TeacherDutyCounts = {
+    chief: 0,
+    assistant: 0,
+    hall: 0,
+    selfStudy: 0,
+    classBurden: timetableClassBurden(exam, teacherId),
+  };
 
   for (const assignment of exam.assignments) {
     if (assignment.teacherId !== teacherId) continue;

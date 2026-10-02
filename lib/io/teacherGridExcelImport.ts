@@ -8,6 +8,7 @@ import {
 import {
   TEACHER_GRID_DATA_START,
   TEACHER_GRID_DUTY_LABEL_ROW,
+  TEACHER_GRID_EXCEL_FIXED_COL_COUNT,
   TEACHER_GRID_HEADER_TOP,
   buildTeacherGridLayout,
 } from "@/lib/grid/teacherGridLayout";
@@ -148,7 +149,12 @@ export async function parseTeacherGridWorkbook(
   }
 
   const periods = Array.from({ length: exam.periodCount }, (_, index) => index + 1);
-  const { days: layoutDays } = buildTeacherGridLayout(exam, periods);
+  const { days: layoutDays } = buildTeacherGridLayout(
+    exam,
+    periods,
+    undefined,
+    TEACHER_GRID_EXCEL_FIXED_COL_COUNT,
+  );
   if (layoutDays.length === 0) {
     return {
       assignments: [],

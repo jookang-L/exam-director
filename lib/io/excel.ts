@@ -192,6 +192,7 @@ type TeacherDutyCounts = {
   teacher: Exam["teachers"][number];
   chief: number;
   assistant: number;
+  hall: number;
   selfStudy: number;
   dutyWeight: number;
   classWeight: number;
@@ -202,6 +203,7 @@ function countDutiesByType(exam: Exam, teacherId: string): Omit<TeacherDutyCount
   let chief = 0;
   let assistant = 0;
   let selfStudy = 0;
+  let hall = 0;
   const dutyWeight = teacherDutyWeight(exam, teacherId);
   for (const a of exam.assignments) {
     if (a.teacherId !== teacherId) continue;
@@ -215,6 +217,9 @@ function countDutiesByType(exam: Exam, teacherId: string): Omit<TeacherDutyCount
       case "부감독":
         assistant++;
         break;
+      case "복도감독":
+        hall++;
+        break;
       case "자습감독":
         selfStudy++;
         break;
@@ -227,6 +232,7 @@ function countDutiesByType(exam: Exam, teacherId: string): Omit<TeacherDutyCount
   return {
     chief,
     assistant,
+    hall,
     selfStudy,
     dutyWeight: Math.round(dutyWeight * 10) / 10,
     classWeight: Math.round(classWeight * 10) / 10,
@@ -241,6 +247,7 @@ const TEACHER_HEADERS = [
   "담임",
   "정감독",
   "부감독",
+  "복도감독",
   "자습감독",
   "감독곤란도",
   "수업부담",
@@ -256,11 +263,11 @@ function buildTeacherSheet(ws: ExcelJS.Worksheet, exam: Exam) {
   stats.sort(
     (a, b) =>
       b.weight - a.weight ||
-      b.chief + b.assistant + b.selfStudy - (a.chief + a.assistant + a.selfStudy),
+      b.chief + b.assistant + b.hall + b.selfStudy - (a.chief + a.assistant + a.hall + a.selfStudy),
   );
 
   ws.addRow([...TEACHER_HEADERS]);
-  for (const { teacher: t, chief, assistant, selfStudy, dutyWeight, classWeight, weight } of stats) {
+  for (const { teacher: t, chief, assistant, hall, selfStudy, dutyWeight, classWeight, weight } of stats) {
     ws.addRow([
       t.name,
       t.subject,
@@ -268,6 +275,7 @@ function buildTeacherSheet(ws: ExcelJS.Worksheet, exam: Exam) {
       t.homeroomGrade ? `${t.homeroomGrade}-${t.homeroomClass}` : "",
       chief,
       assistant,
+      hall,
       selfStudy,
       dutyWeight,
       classWeight,
@@ -325,7 +333,7 @@ function applyPlainTableStyle(ws: ExcelJS.Worksheet, headerRow: number, dataRows
       };
       cell.font = { size: 10, bold: r === headerRow };
       if (r > headerRow && c >= 5 && typeof cell.value === "number") {
-        cell.numFmt = c >= 8 && c <= 10 ? "0.0" : "0";
+        cell.numFmt = c >= 9 && c <= 11 ? "0.0" : "0";
       }
     }
   }

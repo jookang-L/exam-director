@@ -12,6 +12,8 @@ export const TEACHER_GRID_HEADER_TOP = 2;
 export const TEACHER_GRID_HEADER_BOTTOM = 5;
 export const TEACHER_GRID_DUTY_LABEL_ROW = 5;
 export const TEACHER_GRID_DATA_START = 6;
+/** 엑셀 고정 열: 화면 고정 열 + 교과 열. 내보내기와 불러오기가 같은 열 위치를 쓰도록 공유한다. */
+export const TEACHER_GRID_EXCEL_FIXED_COL_COUNT = TEACHER_GRID_FIXED_COL_COUNT + 1;
 
 export type TeacherGridLayoutGroup = TeacherGridPeriodGroup & { colStart: number };
 

@@ -13,8 +13,8 @@ import {
   teacherFatigueBreakdown,
   TEACHER_GRID_CLASS_EXCEL,
   TEACHER_GRID_DUTY_COUNT_COLUMNS,
+  teacherGridCountColumnTitle,
   TEACHER_GRID_FATIGUE_COLUMNS,
-  TEACHER_GRID_FIXED_COL_COUNT,
   TEACHER_GRID_EXCLUDE_EXCEL,
   sortTeachersForTeacherGridDisplay,
   type TeacherGridColumn,
@@ -23,6 +23,7 @@ import {
 import {
   buildTeacherGridLayout,
   TEACHER_GRID_DATA_START,
+  TEACHER_GRID_EXCEL_FIXED_COL_COUNT,
   TEACHER_GRID_HEADER_BOTTOM,
   TEACHER_GRID_HEADER_TOP,
 } from "@/lib/grid/teacherGridLayout";
@@ -60,7 +61,7 @@ const DATE_BORDER_COLOR = "FF374151";
 const PERIOD_BORDER_COLOR = "FF6B7280";
 const EXCEL_SUBJECT_COL = 2;
 const EXCEL_SUMMARY_START_COL = 3;
-const EXCEL_FIXED_COL_COUNT = TEACHER_GRID_FIXED_COL_COUNT + 1;
+const EXCEL_FIXED_COL_COUNT = TEACHER_GRID_EXCEL_FIXED_COL_COUNT;
 
 type TeacherGridExportRow = Exam["teachers"][number] & {
   exportSubject?: string;
@@ -291,7 +292,7 @@ function buildTeacherGridSheet(
     ws.mergeCells(headerTop, excelCol, headerBottom - 1, excelCol);
     const headerCell = ws.getCell(headerTop, excelCol);
     headerCell.value = col.label;
-    headerCell.note = `${col.dutyName} 횟수`;
+    headerCell.note = teacherGridCountColumnTitle(col);
     styleHeaderCell(headerCell);
 
     const sortHeader = ws.getCell(headerBottom, excelCol);
