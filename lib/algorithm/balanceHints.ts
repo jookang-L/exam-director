@@ -2,6 +2,7 @@ import type { Assignment, DutyTypeName, Exam, Teacher, ValidationIssue } from "@
 import { teacherTotalFatigue } from "./fatigue";
 import { hasNoPreviousFatigue, isIncludedInAverageFatigue } from "./averageFatigue";
 import { runFullValidation } from "@/lib/validation/rules";
+import { issueAckKey } from "@/lib/validation/acknowledgedWarnings";
 
 const MAX_CANDIDATES_TO_VALIDATE = 60;
 export const MAX_BALANCE_HINT_SUGGESTIONS = 20;
@@ -123,9 +124,17 @@ export function hasThreeDutyDayWithoutSelfStudy(exam: Exam): boolean {
   return false;
 }
 
-export function findBalanceHintSuggestions(exam: Exam): BalanceHintSuggestion[] {
+/**
+ * @param acknowledgedKeys STEP 12에서 사용자가 확인한 오류·경고 키. 확인한 오류는 추천을 막지 않는다.
+ */
+export function findBalanceHintSuggestions(
+  exam: Exam,
+  acknowledgedKeys?: Set<string>,
+): BalanceHintSuggestion[] {
+  const isBlockingError = (issue: { severity: string } & Parameters<typeof issueAckKey>[0]) =>
+    issue.severity === "error" && !acknowledgedKeys?.has(issueAckKey(issue));
   const currentIssues = runFullValidation(exam);
-  if (currentIssues.some((issue) => issue.severity === "error")) return [];
+  if (currentIssues.some(isBlockingError)) return [];
   if (hasThreeDutyDayWithoutSelfStudy(exam)) return [];
 
   const dutyTypeById = new Map(exam.dutyTypes.map((dutyType) => [dutyType.id, dutyType]));
@@ -244,7 +253,7 @@ export function findBalanceHintSuggestions(exam: Exam): BalanceHintSuggestion[] 
           );
     const nextExam = { ...exam, assignments: nextAssignments };
     const issues = runFullValidation(nextExam);
-    if (issues.some((issue) => issue.severity === "error")) continue;
+    if (issues.some(isBlockingError)) continue;
     if (hasThreeDutyDayWithoutSelfStudy(nextExam)) continue;
 
     const nextCounts = countTeacherRoles(exam, nextAssignments);

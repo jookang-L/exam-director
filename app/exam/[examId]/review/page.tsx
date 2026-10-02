@@ -31,7 +31,7 @@ import { FatigueSummaryLine } from "@/components/FatigueSummaryLine";
 import { reassignSubsetAsync } from "@/lib/algorithm/runSolverAsync";
 import { runFullValidation } from "@/lib/validation/rules";
 import {
-  isAcknowledgedWarning,
+  isAcknowledgedIssue,
   issueAckKey,
   loadAcknowledgedWarningKeys,
   saveAcknowledgedWarningKeys,
@@ -223,9 +223,12 @@ export default function ReviewPage() {
 
   const errorIssues = issues.filter((i) => i.severity === "error");
   const warningIssues = issues.filter((i) => i.severity === "warning");
+  const acknowledgedErrors = errorIssues.filter((i) => isAcknowledgedIssue(i, acknowledgedIssueKeys));
   const acknowledgedWarnings = warningIssues.filter((i) =>
-    isAcknowledgedWarning(i, acknowledgedIssueKeys),
+    isAcknowledgedIssue(i, acknowledgedIssueKeys),
   );
+  const acknowledgedCount = acknowledgedErrors.length + acknowledgedWarnings.length;
+  const activeErrorCount = errorIssues.length - acknowledgedErrors.length;
   const activeWarningCount = warningIssues.length - acknowledgedWarnings.length;
 
   const acknowledgeIssue = (key: string) => {
@@ -236,6 +239,20 @@ export default function ReviewPage() {
       if (exam) saveAcknowledgedWarningKeys(exam.id, next);
       return next;
     });
+  };
+
+  const acknowledgeErrorIssue = (issue: (typeof issues)[number]) => {
+    const ok = window.confirm(
+      [
+        "규칙 오류를 확인 처리합니다.",
+        "",
+        `· ${issue.message}`,
+        "",
+        "의도한 예외(예: STEP 7 제외 조건이 우선인 경우)일 때만 확인하세요.",
+        "확인하면 이 오류는 이상없음으로 표시되고, STEP 13 추천 계산에서도 제외됩니다.",
+      ].join("\n"),
+    );
+    if (ok) acknowledgeIssue(issueAckKey(issue));
   };
 
   const slotHandlers = {
@@ -326,11 +343,11 @@ export default function ReviewPage() {
               <FatigueSummaryLine stats={averageFatigue} compact />
             </Badge>
           ) : null}
-          <Badge variant="destructive">오류 {errorIssues.length}</Badge>
+          <Badge variant={activeErrorCount > 0 ? "destructive" : "outline"}>오류 {activeErrorCount}</Badge>
           <Badge variant="warning">경고 {activeWarningCount}</Badge>
-          {acknowledgedWarnings.length > 0 ? (
+          {acknowledgedCount > 0 ? (
             <Badge variant="outline" className="font-normal">
-              확인됨 {acknowledgedWarnings.length}
+              확인됨 {acknowledgedCount}
             </Badge>
           ) : null}
         </div>
@@ -431,48 +448,53 @@ export default function ReviewPage() {
           <CardHeader>
             <CardTitle>
               전체 검증 결과 ({issues.length}
-              {acknowledgedWarnings.length > 0 ? ` · 확인됨 ${acknowledgedWarnings.length}` : ""})
+              {acknowledgedCount > 0 ? ` · 확인됨 ${acknowledgedCount}` : ""})
             </CardTitle>
-            <CardDescription>오류와 경고를 위치별로 확인합니다. 확인한 경고는 이상없음으로 표시됩니다.</CardDescription>
+            <CardDescription>
+              오류와 경고를 위치별로 확인합니다. 확인한 항목은 이상없음으로 표시됩니다. 오류는 규칙 위반이므로
+              의도한 예외일 때만 확인하세요.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="space-y-1 text-sm max-h-72 overflow-y-auto">
               {issues.map((i) => {
                 const ackKey = issueAckKey(i);
-                const acknowledged = isAcknowledgedWarning(i, acknowledgedIssueKeys);
+                const acknowledged = isAcknowledgedIssue(i, acknowledgedIssueKeys);
                 return (
                   <li
                     key={ackKey}
                     className={cn(
                       "flex gap-2 items-start py-1 border-b",
-                      i.severity === "error" && "text-destructive",
+                      i.severity === "error" && !acknowledged && "text-destructive",
                       i.severity === "warning" && !acknowledged && "text-amber-700",
                       acknowledged && "text-emerald-700",
                     )}
                   >
                     <Badge
                       variant={
-                        i.severity === "error"
-                          ? "destructive"
-                          : acknowledged
-                            ? "outline"
-                            : "warning"
+                        acknowledged ? "outline" : i.severity === "error" ? "destructive" : "warning"
                       }
                       className="shrink-0"
                     >
-                      {i.severity === "error" ? "오류" : acknowledged ? "이상없음" : "경고"}
+                      {acknowledged ? "이상없음" : i.severity === "error" ? "오류" : "경고"}
                     </Badge>
                     <span className="flex-1">
                       {acknowledged ? `확인 완료: ${i.message}` : i.message}
                     </span>
-                    {i.severity === "warning" && !acknowledged ? (
+                    {!acknowledged ? (
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         className="h-7 shrink-0 px-2 text-xs"
-                        onClick={() => acknowledgeIssue(ackKey)}
-                        title="이 경고를 이상없음으로 표시"
+                        onClick={() =>
+                          i.severity === "error" ? acknowledgeErrorIssue(i) : acknowledgeIssue(ackKey)
+                        }
+                        title={
+                          i.severity === "error"
+                            ? "이 오류를 확인하고 이상없음으로 표시"
+                            : "이 경고를 이상없음으로 표시"
+                        }
                       >
                         <Check className="h-3.5 w-3.5" /> 확인
                       </Button>

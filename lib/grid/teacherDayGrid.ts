@@ -29,6 +29,7 @@ export type TeacherCellData = {
 export type TeacherDutyCounts = {
   chief: number;
   assistant: number;
+  hall: number;
   selfStudy: number;
 };
 
@@ -44,7 +45,7 @@ export type PeriodExamEntry = {
   classesLabel: string | null;
 };
 
-/** 정·부·자습 열 공통 너비 (rem) */
+/** 정·부·복도·자습 열 공통 너비 (rem) */
 export const TEACHER_GRID_DUTY_COL_REM = 3.25;
 
 export const TEACHER_GRID_DUTY_COL_CLASS =
@@ -52,21 +53,21 @@ export const TEACHER_GRID_DUTY_COL_CLASS =
 
 /** 교사명 열 */
 export const TEACHER_GRID_NAME_COL_CLASS =
-  "w-[4.5rem] min-w-[4.5rem] max-w-[4.5rem] box-border";
+  "w-[4rem] min-w-[4rem] max-w-[4rem] box-border";
 
 /** 피로도 요약 열 */
 export const TEACHER_GRID_FATIGUE_COL_CLASS =
-  "w-[3.25rem] min-w-[3.25rem] max-w-[3.25rem] box-border";
+  "w-[2.5rem] min-w-[2.5rem] max-w-[2.5rem] box-border";
 
-/** 정·부·자습 횟수 요약 열 */
+/** 정·부·복도·자습 횟수 요약 열 */
 export const TEACHER_GRID_COUNT_COL_CLASS =
   "w-[2.1rem] min-w-[2.1rem] max-w-[2.1rem] box-border";
 
-export const TEACHER_GRID_NAME_COL_REM = 4.5;
-export const TEACHER_GRID_FATIGUE_COL_REM = 3.25;
+export const TEACHER_GRID_NAME_COL_REM = 4;
+export const TEACHER_GRID_FATIGUE_COL_REM = 2.5;
 export const TEACHER_GRID_FATIGUE_COL_COUNT = 3;
 export const TEACHER_GRID_COUNT_COL_REM = 2.1;
-export const TEACHER_GRID_SUMMARY_COL_COUNT = 3;
+export const TEACHER_GRID_SUMMARY_COL_COUNT = 4;
 export const TEACHER_GRID_FIXED_COL_COUNT =
   1 + TEACHER_GRID_FATIGUE_COL_COUNT + TEACHER_GRID_SUMMARY_COL_COUNT;
 
@@ -79,6 +80,7 @@ export const TEACHER_GRID_FATIGUE_COLUMNS = [
 export const TEACHER_GRID_DUTY_COUNT_COLUMNS = [
   { key: "chief", label: "정", dutyName: "정감독" },
   { key: "assistant", label: "부", dutyName: "부감독" },
+  { key: "hall", label: "복도", dutyName: "복도감독" },
   { key: "selfStudy", label: "자습", dutyName: "자습감독" },
 ] as const;
 
@@ -284,7 +286,7 @@ export function buildTeacherSlotLookup(
 export function teacherDutyCounts(exam: Exam, teacherId: string): TeacherDutyCounts {
   const slotById = new Map(exam.dutySlots.map((slot) => [slot.id, slot]));
   const dutyById = new Map(exam.dutyTypes.map((duty) => [duty.id, duty.name]));
-  const counts: TeacherDutyCounts = { chief: 0, assistant: 0, selfStudy: 0 };
+  const counts: TeacherDutyCounts = { chief: 0, assistant: 0, hall: 0, selfStudy: 0 };
 
   for (const assignment of exam.assignments) {
     if (assignment.teacherId !== teacherId) continue;
@@ -293,6 +295,7 @@ export function teacherDutyCounts(exam: Exam, teacherId: string): TeacherDutyCou
     const dutyName = dutyById.get(slot.dutyTypeId);
     if (dutyName === "정감독") counts.chief += 1;
     else if (dutyName === "부감독") counts.assistant += 1;
+    else if (dutyName === "복도감독") counts.hall += 1;
     else if (dutyName === "자습감독") counts.selfStudy += 1;
   }
 

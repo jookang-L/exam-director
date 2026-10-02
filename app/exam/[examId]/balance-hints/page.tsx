@@ -18,6 +18,7 @@ import {
 import type { ValidationIssue } from "@/lib/types";
 import { runFullValidation } from "@/lib/validation/rules";
 import {
+  isAcknowledgedIssue,
   isAcknowledgedWarning,
   loadAcknowledgedWarningKeys,
 } from "@/lib/validation/acknowledgedWarnings";
@@ -35,7 +36,9 @@ export default function BalanceHintsPage() {
   );
 
   const currentIssues = React.useMemo(() => (exam ? runFullValidation(exam) : []), [exam]);
-  const currentErrors = currentIssues.filter((issue) => issue.severity === "error");
+  const currentErrors = currentIssues.filter(
+    (issue) => issue.severity === "error" && !isAcknowledgedIssue(issue, acknowledgedWarningKeys),
+  );
 
   React.useEffect(() => {
     if (!exam) return;
@@ -51,7 +54,7 @@ export default function BalanceHintsPage() {
     setCalculating(true);
     setSuggestions([]);
     const timer = window.setTimeout(() => {
-      const next = findBalanceHintSuggestions(exam);
+      const next = findBalanceHintSuggestions(exam, acknowledgedWarningKeys);
       if (!cancelled) {
         setSuggestions(next);
         setCalculating(false);
@@ -61,14 +64,16 @@ export default function BalanceHintsPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [exam]);
+  }, [exam, acknowledgedWarningKeys]);
 
   if (!exam) return null;
 
   const applySuggestion = (suggestion: BalanceHintSuggestion) => {
     const nextExam = buildBalanceHintExam(exam, suggestion);
     const issues = runFullValidation(nextExam);
-    const errors = issues.filter((issue) => issue.severity === "error");
+    const errors = issues.filter(
+      (issue) => issue.severity === "error" && !isAcknowledgedIssue(issue, acknowledgedWarningKeys),
+    );
     const warnings = issues.filter(
       (issue) => issue.severity === "warning" && !isAcknowledgedWarning(issue, acknowledgedWarningKeys),
     );
@@ -150,7 +155,7 @@ export default function BalanceHintsPage() {
           </div>
           {currentErrors.length > 0 ? (
             <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-destructive">
-              현재 감독표에 오류가 있어 추천을 만들지 않았습니다. STEP12에서 오류를 먼저 해결해주세요.
+              현재 감독표에 오류가 있어 추천을 만들지 않았습니다. STEP12에서 오류를 해결하거나, 의도한 예외라면 확인 처리해주세요.
             </div>
           ) : null}
         </CardContent>
