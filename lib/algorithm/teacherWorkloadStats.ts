@@ -1,7 +1,7 @@
 import type { Exam, Teacher } from "@/lib/types";
 import { DEFAULT_DUTY_WEIGHT_FALLBACK } from "@/lib/fatigueWeights";
 import { buildExamLookups } from "./constraintIndexes";
-import { timetableClassBurden } from "./timetableFatigue";
+import { timetableClassBurden, timetableClassCount } from "./timetableFatigue";
 
 export type TeacherWorkloadRow = {
   teacher: Teacher;
@@ -11,6 +11,8 @@ export type TeacherWorkloadRow = {
   selfStudyCount: number;
   hallCount: number;
   classBurden: number;
+  /** 시험 기간 중 정규 수업 횟수 (표시용) */
+  classCount: number;
   totalFatigue: number;
   currentExamFatigue: number;
   previousCarriedFatigue: number;
@@ -23,7 +25,7 @@ export type TeacherWorkloadSortKey = keyof Pick<
   | "assistantCount"
   | "selfStudyCount"
   | "hallCount"
-  | "classBurden"
+  | "classCount"
   | "totalFatigue"
   | "currentExamFatigue"
   | "previousCarriedFatigue"
@@ -70,6 +72,7 @@ export function buildTeacherWorkloadRows(exam: Exam): TeacherWorkloadRow[] {
       selfStudyCount: c.selfStudy,
       hallCount: c.hall,
       classBurden,
+      classCount: timetableClassCount(exam, t.id),
       totalFatigue,
       currentExamFatigue,
       previousCarriedFatigue,

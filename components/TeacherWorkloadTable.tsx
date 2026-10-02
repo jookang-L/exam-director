@@ -31,7 +31,7 @@ const COLUMNS: Array<{
   { key: "assistantCount", label: "부감독", align: "right", group: "duty" },
   { key: "selfStudyCount", label: "자습감독", align: "right", group: "duty" },
   { key: "hallCount", label: "복도감독", align: "right", group: "duty" },
-  { key: "classBurden", label: "수업", align: "right", group: "duty" },
+  { key: "classCount", label: "수업", align: "right", group: "duty" },
   { key: "totalFatigue", label: "총 누적도", align: "right", group: "fatigue" },
   { key: "currentExamFatigue", label: "현재시험", align: "right", group: "fatigue" },
   { key: "previousCarriedFatigue", label: "이전시험", align: "right", group: "fatigue" },
@@ -54,6 +54,7 @@ function getCellValue(row: ReturnType<typeof buildTeacherWorkloadRows>[number], 
   if (key === "assistantCount") return row.assistantCount;
   if (key === "selfStudyCount") return row.selfStudyCount;
   if (key === "hallCount") return row.hallCount;
+  if (key === "classCount") return row.classCount;
   return row[key].toFixed(1);
 }
 
@@ -183,7 +184,7 @@ export function TeacherWorkloadTable({ exam }: { exam: Exam }) {
                     groupCellClass(col, isFirstInGroup(i)),
                     col.key === "totalFatigue" && "font-semibold font-mono",
                     col.group === "fatigue" && col.key !== "totalFatigue" && "font-mono",
-                    col.key === "classBurden" && "font-mono",
+                    col.key === "classCount" && "font-mono",
                   );
 
                   if (col.key === "name") {

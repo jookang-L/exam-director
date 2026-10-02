@@ -1,6 +1,6 @@
 import type { Assignment, DutySlot, Exam, ExamSlot, Grade, Teacher, TeacherTimetable } from "@/lib/types";
 import { teacherTotalFatigue } from "@/lib/algorithm/fatigue";
-import { timetableClassBurden } from "@/lib/algorithm/timetableFatigue";
+import { timetableClassCount } from "@/lib/algorithm/timetableFatigue";
 import { timetableConflict } from "@/lib/algorithm/constraints";
 import { compareDutyTypesByDisplayOrder } from "@/lib/grid/periodDutyRows";
 
@@ -32,8 +32,8 @@ export type TeacherDutyCounts = {
   assistant: number;
   hall: number;
   selfStudy: number;
-  /** 정규 수업 곤란도 (수업 1회당 점수 합) */
-  classBurden: number;
+  /** 시험 기간 중 정규 수업 횟수 */
+  classCount: number;
 };
 
 export type TeacherFatigueBreakdown = {
@@ -82,15 +82,8 @@ export const TEACHER_GRID_DUTY_COUNT_COLUMNS = [
   { key: "assistant", label: "부", dutyName: "부감독" },
   { key: "hall", label: "복도", dutyName: "복도감독" },
   { key: "selfStudy", label: "자습", dutyName: "자습감독" },
-  { key: "classBurden", label: "수업", dutyName: "수업", title: "수업 곤란도 (수업 1회당 30점)" },
+  { key: "classCount", label: "수업", dutyName: "수업" },
 ] as const;
-
-/** 요약 열 머리글·셀의 설명 (감독 열은 "○○ 횟수", 수업 열은 곤란도). */
-export function teacherGridCountColumnTitle(
-  col: (typeof TEACHER_GRID_DUTY_COUNT_COLUMNS)[number],
-): string {
-  return "title" in col ? col.title : `${col.dutyName} 횟수`;
-}
 
 export const TEACHER_GRID_SUMMARY_COL_COUNT = TEACHER_GRID_DUTY_COUNT_COLUMNS.length;
 export const TEACHER_GRID_FIXED_COL_COUNT =
@@ -303,7 +296,7 @@ export function teacherDutyCounts(exam: Exam, teacherId: string): TeacherDutyCou
     assistant: 0,
     hall: 0,
     selfStudy: 0,
-    classBurden: timetableClassBurden(exam, teacherId),
+    classCount: timetableClassCount(exam, teacherId),
   };
 
   for (const assignment of exam.assignments) {

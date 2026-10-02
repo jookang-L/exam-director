@@ -58,7 +58,6 @@ import {
   TEACHER_GRID_COUNT_COL_CLASS,
   TEACHER_GRID_COUNT_COL_REM,
   TEACHER_GRID_DUTY_COUNT_COLUMNS,
-  teacherGridCountColumnTitle,
   TEACHER_GRID_EXCLUDE_SHADE_CLASS,
   TEACHER_GRID_EXCLUDE_TEXT_CLASS,
   TEACHER_GRID_DUTY_COL_CLASS,
@@ -697,7 +696,7 @@ function TeacherDayGrid({
                         TEACHER_GRID_COUNT_COL_CLASS,
                       )}
                       style={{ left: stickyCountLeft(index) }}
-                      title={teacherGridCountColumnTitle(col)}
+                      title={`${col.dutyName} 횟수`}
                     >
                       {col.label}
                     </th>
@@ -799,7 +798,7 @@ function TeacherDayGrid({
                         <DutyCountCell
                           key={col.key}
                           count={counts[col.key]}
-                          label={teacherGridCountColumnTitle(col)}
+                          label={col.dutyName}
                           stickyLeft={stickyCountLeft(index)}
                         />
                       ))}
@@ -1032,7 +1031,7 @@ function DutyCountCell({
           : "bg-background text-muted-foreground",
       )}
       style={{ left: stickyLeft }}
-      title={label}
+      title={`${label} 횟수`}
     >
       {count}
     </td>
