@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StepNavButtons } from "@/components/wizard/WizardFrame";
-import { Check, Lock, Unlock, Wand2, ArrowDown, ArrowUp, FileSpreadsheet, Search, X } from "lucide-react";
+import { Check, Lock, Unlock, Wand2, ArrowDown, ArrowUp, Download, Search, X } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -393,8 +393,15 @@ export default function ReviewPage() {
             >
               {showAllTeachers ? "배정 교사만" : "전체 교사"}
             </Button>
-            <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={exporting} title="전체 교사 · 누적도 내림차순 · 모든 날짜">
-              <FileSpreadsheet className="h-4 w-4" /> {exporting ? "내보내는 중…" : "엑셀"}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportExcel}
+              disabled={exporting}
+              title="전체 교사 · 누적도 내림차순 · 모든 날짜"
+              className="border-2 border-emerald-700 bg-emerald-600 font-semibold text-white shadow-sm hover:bg-emerald-700 hover:text-white"
+            >
+              <Download className="h-4 w-4" /> {exporting ? "내보내는 중…" : "엑셀 다운로드"}
             </Button>
             <div className="flex flex-wrap items-center gap-1">
               {periods.map((period) => {
