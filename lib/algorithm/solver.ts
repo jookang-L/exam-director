@@ -18,13 +18,14 @@ import { isIncludedInAverageFatigue } from "./averageFatigue";
 import { isBetterSolverScore, scoreSolverResult, teachersForBalanceStats } from "./balanceScore";
 import {
   evaluateAll,
+  isAllowedByAll,
   isEvaluationOfficer,
   type ConstraintContext,
   type ConstraintReason,
 } from "./constraints";
 import { buildFixedAssignments } from "./fixed";
 import { timetableClassBurden } from "./timetableFatigue";
-import { buildBalancePlan, type BalancePlan } from "./targetFatigue";
+import { buildAssignedMassTargets, buildBalancePlan, type BalancePlan } from "./targetFatigue";
 import { fixedSolverSeeds } from "./solverSeeds";
 
 export type SolverValidationError = {
@@ -685,6 +686,10 @@ function balancePostProcess(
 
   const teacherById = new Map(exam.teachers.map((teacher) => [teacher.id, teacher]));
   const maxIterations = Math.min(75, Math.max(10, assignments.length));
+  // 점수·화면의 목표 초과와 같은 기준(이번에 배정된 감독량). 슬롯을 넘겨도 배정된 집합은 그대로라 한 번만 만든다.
+  const targetByTeacher = buildAssignedMassTargets(exam, balancePlan, assignments, lookups);
+  // 목표 대비 상·하위 인원 제한 없이 균형 대상 전체를 후보로 본다. 제곱합이 줄지 않는 쌍은 제약 검사 전에 걸러진다.
+  const receiverIds = [...balancePlan.eligibleTeacherIds];
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     const totals = new Map<string, number>();
@@ -694,90 +699,86 @@ function balancePostProcess(
         (teacherBaseFatigue.get(teacher.id) ?? 0) + (cache.weight.get(teacher.id) ?? 0),
       );
     }
-    const currentMaxExcess = maximumTargetExcess(
-      totals,
-      balancePlan.targetByTeacher,
-    );
-    const donorIds = [...balancePlan.eligibleTeacherIds]
-      .sort(
-        (a, b) =>
-          (totals.get(b) ?? 0) - (balancePlan.targetByTeacher.get(b) ?? 0) -
-          ((totals.get(a) ?? 0) - (balancePlan.targetByTeacher.get(a) ?? 0)),
-      )
-      .slice(0, 8);
-    const receiverIds = [...balancePlan.eligibleTeacherIds]
-      .sort(
-        (a, b) =>
-          (totals.get(a) ?? 0) - (balancePlan.targetByTeacher.get(a) ?? 0) -
-          ((totals.get(b) ?? 0) - (balancePlan.targetByTeacher.get(b) ?? 0)),
-      )
-      .slice(0, 12);
+    const currentMaxExcess = maximumTargetExcess(totals, targetByTeacher);
 
-    let best:
-      | {
-          assignment: Assignment;
-          slot: DutySlot;
-          fromId: string;
-          toId: string;
-          deltaSSD: number;
-        }
-      | null = null;
+    // 제곱합이 줄어드는 이동만 모은 뒤, 많이 줄이는 순서로 검사해 처음 통과하는 이동을 쓴다.
+    const candidates: Array<{
+      assignment: Assignment;
+      slot: DutySlot;
+      fromId: string;
+      toId: string;
+      deltaSSD: number;
+      weight: number;
+    }> = [];
 
     for (const assignment of assignments) {
-      if (assignment.fixed || !donorIds.includes(assignment.teacherId)) continue;
+      if (assignment.fixed || !balancePlan.eligibleTeacherIds.has(assignment.teacherId)) continue;
       if (mutableSlotIds && !mutableSlotIds.has(assignment.dutySlotId)) continue;
       const slot = lookups.slotById.get(assignment.dutySlotId);
       if (!slot) continue;
       const weight = slotWeight(lookups, slot.dutyTypeId);
       const fromId = assignment.teacherId;
       const fromBefore = totals.get(fromId) ?? 0;
-      const fromTarget = balancePlan.targetByTeacher.get(fromId) ?? fromBefore;
+      const fromTarget = targetByTeacher.get(fromId) ?? fromBefore;
 
       for (const toId of receiverIds) {
-        if (toId === fromId) continue;
-        const receiver = teacherById.get(toId);
-        if (!receiver) continue;
+        if (toId === fromId || !teacherById.has(toId)) continue;
         const toBefore = totals.get(toId) ?? 0;
-        const toTarget = balancePlan.targetByTeacher.get(toId) ?? toBefore;
+        const toTarget = targetByTeacher.get(toId) ?? toBefore;
         const deltaSSD =
           (fromBefore - weight - fromTarget) ** 2 - (fromBefore - fromTarget) ** 2 +
           (toBefore + weight - toTarget) ** 2 - (toBefore - toTarget) ** 2;
-        if (deltaSSD >= -1e-9 || (best && deltaSSD >= best.deltaSSD)) continue;
-        if (
-          !roleBalanceAllowsMove(
-            slot,
-            fromId,
-            toId,
-            cache,
-            lookups,
-            balancePlan.eligibleTeacherIds,
-          )
-        ) {
-          continue;
-        }
-
-        const overrides = new Map<string, number>([
-          [fromId, fromBefore - weight],
-          [toId, toBefore + weight],
-        ]);
-        if (
-          maximumTargetExcess(totals, balancePlan.targetByTeacher, overrides) >
-          currentMaxExcess + 1e-9
-        ) {
-          continue;
-        }
-
-        assignment.teacherId = toId;
-        const validation = evaluateAll(
-          { exam, assignments, lookups },
-          slot,
-          receiver,
-        );
-        assignment.teacherId = fromId;
-        if (!validation.ok) continue;
-
-        best = { assignment, slot, fromId, toId, deltaSSD };
+        if (deltaSSD >= -1e-9) continue;
+        candidates.push({ assignment, slot, fromId, toId, deltaSSD, weight });
       }
+    }
+    candidates.sort((x, y) => x.deltaSSD - y.deltaSSD);
+
+    let best: (typeof candidates)[number] | null = null;
+    for (const candidate of candidates) {
+      const { assignment, slot, fromId, toId, weight } = candidate;
+      if (
+        !roleBalanceAllowsMove(
+          slot,
+          fromId,
+          toId,
+          cache,
+          lookups,
+          balancePlan.eligibleTeacherIds,
+        )
+      ) {
+        continue;
+      }
+
+      const overrides = new Map<string, number>([
+        [fromId, (totals.get(fromId) ?? 0) - weight],
+        [toId, (totals.get(toId) ?? 0) + weight],
+      ]);
+      if (
+        maximumTargetExcess(totals, targetByTeacher, overrides) >
+        currentMaxExcess + 1e-9
+      ) {
+        continue;
+      }
+
+      // 배정 목록은 옮기지 않고 색인도 이동 전 상태 그대로 검사한다.
+      // 받는 교사는 이 슬롯을 갖고 있지 않으므로, 색인 경로가 같은 교시 충돌과 하루 한도를 정확히 읽는다.
+      // (배정 목록만 옮기면 하루 한도에서 새 슬롯이 빠지고, 색인까지 옮기면 같은 교시 충돌 기록이 덮어써진다.)
+      const receiver = teacherById.get(toId)!;
+      let allowed: boolean;
+      if (receiver.roleType === "보건교사") {
+        // 색인의 같은 교시 보건교사 기록에 보내는 교사가 남아 있어 가능한 이동도 거절된다.
+        // 보건교사는 소수라 색인 없이 이동 후 배정 목록으로 검사한다.
+        assignment.teacherId = toId;
+        allowed = isAllowedByAll({ exam, assignments, lookups }, slot, receiver);
+        assignment.teacherId = fromId;
+      } else {
+        allowed = isAllowedByAll({ exam, assignments, lookups, indexes }, slot, receiver);
+      }
+      if (!allowed) continue;
+
+      best = candidate;
+      break;
     }
 
     if (!best) break;

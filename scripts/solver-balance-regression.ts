@@ -474,8 +474,8 @@ for (const teacher of sample.teachers) {
 const sampleScore = scoreSolverResult(sample, solved, samplePlan);
 assert.ok(Math.abs(sampleTargetSum - sampleActualSum) < 1e-6);
 assert.ok(Math.abs(sampleTargetSum - 25820) < 1e-6);
-assert.ok(Math.abs(sampleScore.maxTargetExcess - 189.65201465201505) < 1e-6);
-assert.ok(Math.abs(sampleScore.targetSSD - 1182986.446886447) < 1e-4);
+assert.ok(Math.abs(sampleScore.maxTargetExcess - 119.65201465201505) < 1e-6);
+assert.ok(Math.abs(sampleScore.targetSSD - 1035129.3040293045) < 1e-4);
 
 console.log(
   JSON.stringify(

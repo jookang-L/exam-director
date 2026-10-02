@@ -536,6 +536,18 @@ export const ALL_CHECKS: Array<(
   checkC7Buffer,
 ];
 
+/** 통과 여부만 필요할 때 — 첫 실패에서 멈춘다. evaluateAll(...).ok 와 결과가 같다. */
+export function isAllowedByAll(
+  ctx: ConstraintContext,
+  slot: DutySlot,
+  teacher: Teacher,
+): boolean {
+  for (const fn of ALL_CHECKS) {
+    if (!fn(ctx, slot, teacher).ok) return false;
+  }
+  return true;
+}
+
 export function evaluateAll(
   ctx: ConstraintContext,
   slot: DutySlot,
