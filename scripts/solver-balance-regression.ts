@@ -453,9 +453,8 @@ const freshOnlyExam: Exam = {
   ],
 };
 const freshAverage = computeAverageTotalFatigue(freshOnlyExam);
-assert.equal(freshAverage.veteransOnly, false);
-assert.equal(freshAverage.count, 2);
-assert.ok(Math.abs(freshAverage.average - 65) < 1e-6);
+assert.equal(freshAverage.count, 0);
+assert.equal(freshAverage.average, 0);
 const freshSpreads = computeBalanceSpreads(freshOnlyExam);
 assert.equal(freshSpreads.eligibleCount, 2);
 assert.equal(freshSpreads.totalFatigueSpread, 70);
@@ -473,10 +472,10 @@ for (const teacher of sample.teachers) {
   sampleActualSum += teacherTotalFatigue(solvedExam, teacher);
 }
 const sampleScore = scoreSolverResult(sample, solved, samplePlan);
-assert.equal(sampleTargetSum, sampleActualSum);
-assert.equal(sampleTargetSum, 25790);
-assert.ok(Math.abs(sampleScore.maxTargetExcess - 190.22893772893747) < 1e-6);
-assert.ok(Math.abs(sampleScore.targetSSD - 1172623.3516483512) < 1e-4);
+assert.ok(Math.abs(sampleTargetSum - sampleActualSum) < 1e-6);
+assert.ok(Math.abs(sampleTargetSum - 25820) < 1e-6);
+assert.ok(Math.abs(sampleScore.maxTargetExcess - 189.65201465201505) < 1e-6);
+assert.ok(Math.abs(sampleScore.targetSSD - 1182986.446886447) < 1e-4);
 
 console.log(
   JSON.stringify(

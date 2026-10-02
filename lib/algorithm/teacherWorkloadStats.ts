@@ -9,6 +9,7 @@ export type TeacherWorkloadRow = {
   chiefCount: number;
   assistantCount: number;
   selfStudyCount: number;
+  hallCount: number;
   classBurden: number;
   totalFatigue: number;
   currentExamFatigue: number;
@@ -21,6 +22,7 @@ export type TeacherWorkloadSortKey = keyof Pick<
   | "chiefCount"
   | "assistantCount"
   | "selfStudyCount"
+  | "hallCount"
   | "classBurden"
   | "totalFatigue"
   | "currentExamFatigue"
@@ -31,26 +33,27 @@ export function buildTeacherWorkloadRows(exam: Exam): TeacherWorkloadRow[] {
   const lookups = buildExamLookups(exam);
   const counts = new Map<
     string,
-    { total: number; chief: number; assistant: number; selfStudy: number; dutyWeight: number }
+    { total: number; chief: number; assistant: number; selfStudy: number; hall: number; dutyWeight: number }
   >();
 
   for (const a of exam.assignments) {
     const slot = lookups.slotById.get(a.dutySlotId);
     if (!slot) continue;
     const dt = lookups.dutyTypeById.get(slot.dutyTypeId);
-    const cur = counts.get(a.teacherId) ?? { total: 0, chief: 0, assistant: 0, selfStudy: 0, dutyWeight: 0 };
+    const cur = counts.get(a.teacherId) ?? { total: 0, chief: 0, assistant: 0, selfStudy: 0, hall: 0, dutyWeight: 0 };
     cur.total += 1;
     cur.dutyWeight += dt?.weight ?? DEFAULT_DUTY_WEIGHT_FALLBACK;
     if (dt?.name === "정감독") cur.chief += 1;
     else if (dt?.name === "부감독") cur.assistant += 1;
     else if (dt?.name === "자습감독") cur.selfStudy += 1;
+    else if (dt?.name === "복도감독") cur.hall += 1;
     counts.set(a.teacherId, cur);
   }
 
   const classBurdenCache = new Map<string, number>();
 
   return exam.teachers.map((t) => {
-    const c = counts.get(t.id) ?? { total: 0, chief: 0, assistant: 0, selfStudy: 0, dutyWeight: 0 };
+    const c = counts.get(t.id) ?? { total: 0, chief: 0, assistant: 0, selfStudy: 0, hall: 0, dutyWeight: 0 };
     let classBurden = classBurdenCache.get(t.id);
     if (classBurden === undefined) {
       classBurden = timetableClassBurden(exam, t.id);
@@ -65,6 +68,7 @@ export function buildTeacherWorkloadRows(exam: Exam): TeacherWorkloadRow[] {
       chiefCount: c.chief,
       assistantCount: c.assistant,
       selfStudyCount: c.selfStudy,
+      hallCount: c.hall,
       classBurden,
       totalFatigue,
       currentExamFatigue,

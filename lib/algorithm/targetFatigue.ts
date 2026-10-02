@@ -191,24 +191,46 @@ function allocateBalanceTargets(
   distributableAdditional: number,
   floorFreshTargetToAlready: boolean,
 ): Map<string, number> {
-  const classSum = included.reduce(
-    (sum, teacher) => sum + timetableClassBurden(exam, teacher.id),
-    0,
-  );
-  // μ는 E 전체(신규+기존)의 이번 감독 점수와 수업 점수 평균이다.
-  // 수업이 기존 사람에게 몰리면 μ가 올라가고 신규 목표도 같이 올라간다.
-  const mu = included.length > 0 ? (dutyWeightTotal + classSum) / included.length : 0;
+  const fresh = included.filter((teacher) => hasNoPreviousFatigue(teacher));
+  const veterans = included.filter((teacher) => !hasNoPreviousFatigue(teacher));
+  const classOf = (teacher: Teacher) => timetableClassBurden(exam, teacher.id);
+
+  // 신규의 감독 몫: 목표 m에서 자기 수업을 뺀 값. 가능한 양(상한)과 고정분 보정은 그대로 적용한다.
+  const freshDutyAt = (teacher: Teacher, m: number) => {
+    const already = alreadyByTeacher.get(teacher.id) ?? 0;
+    const dutyCap = already + (capacityByTeacher.get(teacher.id) ?? 0);
+    let duty = Math.min(dutyCap, Math.max(0, m - classOf(teacher)));
+    if (floorFreshTargetToAlready) duty = Math.max(duty, already);
+    return duty;
+  };
+
+  // 신규 목표 m = 기존 교사의 이번 시험(감독+수업) 평균.
+  // 기존 교사 몫은 전체 감독량에서 신규 몫을 뺀 나머지이므로, 평균(m)이 m과 같아지는 값을 이분법으로 찾는다.
+  // 기존 교사가 없으면 전체 평균을 쓴다.
+  const allClassSum = included.reduce((sum, teacher) => sum + classOf(teacher), 0);
+  let mu = included.length > 0 ? (dutyWeightTotal + allClassSum) / included.length : 0;
+  if (veterans.length > 0 && fresh.length > 0) {
+    const veteranClassSum = veterans.reduce((sum, teacher) => sum + classOf(teacher), 0);
+    const veteranAverageAt = (m: number) => {
+      const freshDuty = fresh.reduce((sum, teacher) => sum + freshDutyAt(teacher, m), 0);
+      return (Math.max(0, dutyWeightTotal - freshDuty) + veteranClassSum) / veterans.length;
+    };
+    let low = 0;
+    let high = Math.max(mu, veteranAverageAt(0));
+    for (let i = 0; i < 64; i++) {
+      const mid = (low + high) / 2;
+      if (veteranAverageAt(mid) > mid) low = mid;
+      else high = mid;
+    }
+    mu = high;
+  }
 
   const targetByTeacher = new Map<string, number>();
   let freshReservedAdditional = 0;
-  for (const teacher of included) {
-    if (!hasNoPreviousFatigue(teacher)) continue;
+  for (const teacher of fresh) {
     const already = alreadyByTeacher.get(teacher.id) ?? 0;
-    const classScore = timetableClassBurden(exam, teacher.id);
-    const dutyCap = already + (capacityByTeacher.get(teacher.id) ?? 0);
-    let dutyTarget = Math.min(dutyCap, Math.max(0, mu - classScore));
-    if (floorFreshTargetToAlready) dutyTarget = Math.max(dutyTarget, already);
-    targetByTeacher.set(teacher.id, classScore + dutyTarget);
+    const dutyTarget = freshDutyAt(teacher, mu);
+    targetByTeacher.set(teacher.id, classOf(teacher) + dutyTarget);
     freshReservedAdditional += Math.max(0, dutyTarget - already);
   }
 

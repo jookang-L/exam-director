@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import type { Exam } from "@/lib/types";
 import {
   buildTeacherWorkloadRows,
@@ -29,6 +30,7 @@ const COLUMNS: Array<{
   { key: "chiefCount", label: "정감독", align: "right", group: "duty" },
   { key: "assistantCount", label: "부감독", align: "right", group: "duty" },
   { key: "selfStudyCount", label: "자습감독", align: "right", group: "duty" },
+  { key: "hallCount", label: "복도감독", align: "right", group: "duty" },
   { key: "classBurden", label: "수업", align: "right", group: "duty" },
   { key: "totalFatigue", label: "총 누적도", align: "right", group: "fatigue" },
   { key: "currentExamFatigue", label: "현재시험", align: "right", group: "fatigue" },
@@ -51,6 +53,7 @@ function getCellValue(row: ReturnType<typeof buildTeacherWorkloadRows>[number], 
   if (key === "chiefCount") return row.chiefCount;
   if (key === "assistantCount") return row.assistantCount;
   if (key === "selfStudyCount") return row.selfStudyCount;
+  if (key === "hallCount") return row.hallCount;
   return row[key].toFixed(1);
 }
 
@@ -87,11 +90,18 @@ function SortHeader({
 export function TeacherWorkloadTable({ exam }: { exam: Exam }) {
   const [sortKey, setSortKey] = React.useState<TeacherWorkloadSortKey>("totalFatigue");
   const [sortDir, setSortDir] = React.useState<SortDir>("desc");
+  const [query, setQuery] = React.useState("");
 
   const rows = React.useMemo(() => {
     const built = buildTeacherWorkloadRows(exam);
     return sortTeacherWorkloadRows(built, sortKey, sortDir);
   }, [exam, sortKey, sortDir]);
+
+  const visibleRows = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((row) => row.teacher.name.toLowerCase().includes(q));
+  }, [rows, query]);
 
   const toggleSort = (key: TeacherWorkloadSortKey) => {
     if (sortKey === key) {
@@ -110,6 +120,20 @@ export function TeacherWorkloadTable({ exam }: { exam: Exam }) {
 
   return (
     <TooltipProvider delayDuration={200}>
+      <div className="flex items-center gap-2 mb-2">
+        <Input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="교사명 검색"
+          className="h-8 max-w-xs"
+        />
+        {query.trim() ? (
+          <span className="text-xs text-muted-foreground">
+            {visibleRows.length}/{rows.length}명
+          </span>
+        ) : null}
+      </div>
       <div className="overflow-x-auto max-h-[32rem] overflow-y-auto border rounded-md">
         <table className="w-full min-w-[960px] text-sm border-collapse">
           <thead className="sticky top-0 z-10">
@@ -117,7 +141,7 @@ export function TeacherWorkloadTable({ exam }: { exam: Exam }) {
               <th className="p-1.5 px-2 font-normal text-left bg-muted/50" />
               <th
                 className={cn("p-1.5 px-2 font-normal text-center", GROUP_CELL.duty, "border-l-2 border-border")}
-                colSpan={5}
+                colSpan={6}
               >
                 감독 · 수업
               </th>
@@ -150,7 +174,7 @@ export function TeacherWorkloadTable({ exam }: { exam: Exam }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {visibleRows.map((row) => (
               <tr key={row.teacher.id} className="border-t hover:bg-muted/15">
                 {COLUMNS.map((col, i) => {
                   const cellClass = cn(
@@ -186,6 +210,13 @@ export function TeacherWorkloadTable({ exam }: { exam: Exam }) {
                 })}
               </tr>
             ))}
+            {visibleRows.length === 0 ? (
+              <tr>
+                <td colSpan={COLUMNS.length} className="p-4 text-center text-muted-foreground">
+                  검색 결과가 없습니다.
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>

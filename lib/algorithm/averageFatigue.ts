@@ -81,8 +81,8 @@ export function computeAverageTotalFatigue(exam: Exam): AverageTotalFatigueResul
   }
 
   const veterans = eligible.filter((entry) => !hasNoPreviousFatigue(entry.teacher));
-  const pool = veterans.length > 0 ? veterans : eligible;
-  const veteransOnly = veterans.length > 0;
+  const pool = veterans;
+  const veteransOnly = true;
   const count = pool.length;
   if (count === 0) {
     return {
