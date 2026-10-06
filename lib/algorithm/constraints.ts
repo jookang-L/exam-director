@@ -255,6 +255,33 @@ export function checkLecturerAssistantOnly(
   };
 }
 
+/**
+ * LP: 「강사 무조건 배정」 실행 중에만 켜지는 제한 — 강사는 `exam.lecturerBlockedPeriods`의 교시에 배정하지 않는다.
+ * 저장된 시험에는 이 값이 없으므로 일반 자동 배정·수동 수정·검증에는 영향이 없다.
+ * STEP 9 우선/고정과 이미 고정된 배정은 이 제한보다 우선한다.
+ */
+export function checkLecturerBlockedPeriod(
+  ctx: ConstraintContext,
+  slot: DutySlot,
+  teacher: Teacher,
+): ConstraintCheck {
+  const blocked = ctx.exam.lecturerBlockedPeriods;
+  if (!blocked || blocked.length === 0) return OK;
+  if (!isLecturer(teacher) || !blocked.includes(slot.period)) return OK;
+  if (hasStep9Override(ctx.exam, teacher.id, slot.id)) return OK;
+  const alreadyFixed = ctx.exam.assignments.some(
+    (a) => a.fixed && a.teacherId === teacher.id && a.dutySlotId === slot.id,
+  );
+  if (alreadyFixed) return OK;
+  return {
+    ok: false,
+    reason: {
+      code: "LP",
+      message: `강사는 ${slot.period}교시에 배정하지 않습니다 (강사 무조건 배정)`,
+    },
+  };
+}
+
 // C8: 시험 과목 담당 교사는 시험 반 수와 무관하게 해당 교시 모든 감독 불가.
 // STEP 9 우선/고정 배정은 이 과목교사 금지보다 우선한다.
 export function checkSubjectTeacherExamSubject(
@@ -544,6 +571,7 @@ export const ALL_CHECKS: Array<(
   checkHomeroomOwnClass,
   checkHealthTeacherUnique,
   checkLecturerAssistantOnly,
+  checkLecturerBlockedPeriod,
   checkNutritionTeacherRules,
   checkC7DailyLimit,
   checkC7Buffer,

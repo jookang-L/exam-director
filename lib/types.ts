@@ -160,6 +160,11 @@ export type Exam = {
   preassigns: Preassign[];
   dutySlots: DutySlot[];
   assignments: Assignment[];
+  /**
+   * 실행 중에만 붙이는 값 — 저장·불러오기 대상이 아니다. 강사가 이 교시들에 배정되는 것을 막는다.
+   * 「강사 무조건 배정」 실행(`withLecturerPeriodRule`)이 솔버 입력에만 설정한다.
+   */
+  lecturerBlockedPeriods?: number[];
 };
 
 export type ExamMeta = Pick<Exam, "id" | "name" | "createdAt" | "updatedAt">;

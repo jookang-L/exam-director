@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test:solver": "tsx scripts/solver-balance-regression.ts",
-    "test:exclude": "tsx scripts/exclude-allow-regression.ts"
+    "test:exclude": "tsx scripts/exclude-allow-regression.ts",
+    "test:lecturer": "tsx scripts/lecturer-priority-regression.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "6.1.0",

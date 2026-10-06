@@ -8,12 +8,18 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { StepNavButtons } from "@/components/wizard/WizardFrame";
-import { AlertTriangle, Sparkles, Trash } from "lucide-react";
+import { AlertTriangle, Sparkles, Trash, UserCheck } from "lucide-react";
+import type { Assignment } from "@/lib/types";
 import {
   evaluateAssignmentCandidateAsync,
   runSolverBestOfAsync,
   type SolverProgress,
 } from "@/lib/algorithm/runSolverAsync";
+import {
+  buildLecturerPriorityAssignments,
+  releaseLecturerPriorityFixes,
+  withLecturerPeriodRule,
+} from "@/lib/algorithm/lecturerPriority";
 import type { MultiSolverResult } from "@/lib/algorithm/solver";
 import { isBetterSolverScore } from "@/lib/algorithm/balanceScore";
 import {
@@ -26,11 +32,18 @@ import { TeacherWorkloadTable } from "@/components/TeacherWorkloadTable";
 import { toast } from "@/components/ui/use-toast";
 import { dateWithWeekday } from "@/lib/utils";
 
+type RunMode = "auto" | "lecturer";
+
 export default function AssignPage() {
   const exam = useExam();
   const m = useExamMutators();
   const [result, setResult] = React.useState<MultiSolverResult | null>(null);
   const [running, setRunning] = React.useState(false);
+  const [runMode, setRunMode] = React.useState<RunMode>("auto");
+  const [lecturerSummary, setLecturerSummary] = React.useState<{
+    assignments: number;
+    teachers: number;
+  } | null>(null);
   const [progress, setProgress] = React.useState<SolverProgress | null>(null);
   const [enhancedBalance, setEnhancedBalance] = React.useState(false);
   const [keepReason, setKeepReason] = React.useState<"validation" | "not-better" | null>(null);
@@ -58,26 +71,73 @@ export default function AssignPage() {
 
   const plannedRuns = enhancedBalance ? ENHANCED_SOLVER_MAX_RUNS : 1;
 
-  const runAuto = () => {
+  const runAuto = (mode: RunMode = "auto") => {
+    const lecturerFirst = mode === "lecturer";
+    const fixedAssignments = exam.assignments.filter((a) => a.fixed);
+    const baseExam = { ...exam, assignments: fixedAssignments };
+
+    // 강사 무조건 배정: 강사가 맡을 수 있는 모든 시간에 부감독을 먼저 깔고 고정한 채 솔버를 돌린다.
+    let lecturerAssignments: Assignment[] = [];
+    if (lecturerFirst) {
+      lecturerAssignments = buildLecturerPriorityAssignments(baseExam);
+      if (lecturerAssignments.length === 0) {
+        toast({
+          title: "강사 우선 배정할 시간이 없습니다",
+          description:
+            "역할이 강사인 교사가 없거나, 강사가 맡을 수 있는 빈 부감독 슬롯이 없습니다 (STEP 7 제외·정규 수업 포함).",
+          variant: "warning",
+        });
+        return;
+      }
+      const lecturerCount = new Set(lecturerAssignments.map((a) => a.teacherId)).size;
+      const replaced = exam.assignments.length - fixedAssignments.length;
+      const message = [
+        `강사 ${lecturerCount}명에게 부감독 ${lecturerAssignments.length}건을 먼저 배정한 뒤 나머지를 자동 배정합니다.`,
+        replaced > 0
+          ? `고정되지 않은 기존 배정 ${replaced}건은 새 결과로 교체됩니다 (고정 배정은 유지).`
+          : null,
+        "",
+        "계속하시겠습니까?",
+      ]
+        .filter((line) => line !== null)
+        .join("\n");
+      if (!confirm(message)) return;
+    }
+
     setRunning(true);
+    setRunMode(mode);
     setProgress(null);
     setKeepReason(null);
+    setLecturerSummary(null);
     const seeds = enhancedBalance ? buildEnhancedSolverSeeds() : [1];
     const baselineAssignments = exam.assignments.map((assignment) => ({ ...assignment }));
-    const examForSolver = {
-      ...exam,
-      assignments: exam.assignments.filter((a) => a.fixed),
+    const solverBase = {
+      ...baseExam,
+      assignments: [...fixedAssignments, ...lecturerAssignments],
     };
+    // 강사 무조건 배정이면 이어지는 자동 배정에서도 강사에게 1교시를 주지 않도록 제한을 붙인다 (저장되는 시험에는 쓰지 않음).
+    const examForSolver = lecturerFirst ? withLecturerPeriodRule(solverBase) : solverBase;
+    const lecturerAssignmentIds = new Set(lecturerAssignments.map((a) => a.id));
     void Promise.all([
       runSolverBestOfAsync(examForSolver, {
         seeds,
         onProgress: (p) => setProgress(p),
       }),
-      evaluateAssignmentCandidateAsync(examForSolver, baselineAssignments),
+      // 강사 무조건 배정은 기존 배정과 비교하지 않고 항상 새 결과를 적용한다(제약 오류가 없을 때).
+      lecturerFirst
+        ? Promise.resolve(null)
+        : evaluateAssignmentCandidateAsync(examForSolver, baselineAssignments),
     ])
-      .then(([r, baseline]) => {
+      .then(([solved, baseline]) => {
+        // 솔버 동안에만 고정했던 강사 배정은 일반 배정으로 돌려놓는다 (STEP 12에서 수정 가능).
+        const r = lecturerFirst
+          ? {
+              ...solved,
+              assignments: releaseLecturerPriorityFixes(solved.assignments, lecturerAssignmentIds),
+            }
+          : solved;
         const hasValidationErrors = r.validationErrors.length > 0;
-        const improved = isBetterSolverScore(r.score, baseline.score);
+        const improved = baseline === null || isBetterSolverScore(r.score, baseline.score);
         const nextKeepReason = hasValidationErrors
           ? "validation"
           : improved
@@ -93,21 +153,32 @@ export default function AssignPage() {
           setResult(r);
         }
         setKeepReason(nextKeepReason);
+        if (lecturerFirst) {
+          setLecturerSummary({
+            assignments: lecturerAssignments.length,
+            teachers: new Set(lecturerAssignments.map((a) => a.teacherId)).size,
+          });
+        }
+        const lecturerNote = lecturerFirst
+          ? `강사 부감독 ${lecturerAssignments.length}건 우선 배정 · `
+          : "";
         toast({
           title:
             nextKeepReason === "validation"
               ? "자동 적용 보류"
               : nextKeepReason === "not-better"
                 ? "기존 배정 유지"
-                : "자동 배정 완료",
+                : lecturerFirst
+                  ? "강사 우선 배정 + 자동 배정 완료"
+                  : "자동 배정 완료",
           description:
             nextKeepReason === "validation"
               ? `제약 오류 ${r.validationErrors.length}건이 있어 기존 배정을 유지했습니다.`
               : nextKeepReason === "not-better"
               ? `${r.runs}회 탐색했지만 기존 배정보다 좋은 결과가 없어 유지했습니다.`
               : r.runs > 1
-              ? `${r.runs}회 탐색 중 seed ${r.pickedSeed} 선택 · ${r.assignments.length}건 배정, 미배정 ${r.unassigned.length}건`
-              : `${r.assignments.length}건 배정, 미배정 ${r.unassigned.length}건 · 제약 오류 ${r.validationErrors.length}건`,
+              ? `${lecturerNote}${r.runs}회 탐색 중 seed ${r.pickedSeed} 선택 · ${r.assignments.length}건 배정, 미배정 ${r.unassigned.length}건`
+              : `${lecturerNote}${r.assignments.length}건 배정, 미배정 ${r.unassigned.length}건 · 제약 오류 ${r.validationErrors.length}건`,
           variant:
             !nextKeepReason && r.unassigned.length === 0
               ? "success"
@@ -174,20 +245,35 @@ export default function AssignPage() {
           <CardTitle>자동 배정 실행</CardTitle>
           <CardDescription>
             기존 배정 중 <strong>고정(fixed=true)</strong> 항목은 보존됩니다. 새 결과가 더 좋을 때만 기존 배정을 교체합니다.
+            <br />
+            <strong>강사 무조건 배정</strong>은 강사가 맡을 수 있는 모든 시간(STEP 7 제외·정규 수업 제외)에 부감독을 먼저
+            배정한 뒤 나머지를 자동 배정합니다. 강사에게는 <strong>1교시를 배정하지 않습니다</strong>(2교시 이후만, 이어지는
+            자동 배정 단계 포함). 영양교사·담임 첫날 자습·STEP 9 배정이 항상 우선이며, 강사 부담은 늘고 다른 교사의 부담은
+            줄고, 기존 배정은 비교 없이 새 결과로 교체됩니다.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex gap-2 flex-wrap">
-              <Button onClick={runAuto} disabled={running}>
+              <Button onClick={() => runAuto("auto")} disabled={running}>
                 <Sparkles className="h-4 w-4" />
-                {running
+                {running && runMode === "auto"
                   ? progress
                     ? plannedRuns > 1
                       ? `탐색 중 (${progress.completed}/${progress.total})…`
                       : "배정 중…"
                     : "준비 중…"
                   : "자동 배정 실행"}
+              </Button>
+              <Button variant="secondary" onClick={() => runAuto("lecturer")} disabled={running}>
+                <UserCheck className="h-4 w-4" />
+                {running && runMode === "lecturer"
+                  ? progress
+                    ? plannedRuns > 1
+                      ? `탐색 중 (${progress.completed}/${progress.total})…`
+                      : "배정 중…"
+                    : "준비 중…"
+                  : "강사 무조건 배정"}
               </Button>
               <Button variant="outline" onClick={clearNonFixed} disabled={running}>
                 고정 외 초기화
@@ -235,6 +321,12 @@ export default function AssignPage() {
                 <Stat label="탐색 횟수" value={result.runs > 1 ? `${result.runs}회 중 선택` : "1회"} />
                 <Stat label="선택 seed" value={result.pickedSeed} />
                 <Stat label="배정 완료" value={result.assignments.length} />
+                {lecturerSummary ? (
+                  <Stat
+                    label="강사 우선 배정"
+                    value={`${lecturerSummary.assignments}건 · ${lecturerSummary.teachers}명`}
+                  />
+                ) : null}
                 <Stat label="미배정" value={result.unassigned.length} variant={result.unassigned.length === 0 ? "success" : "warning"} />
                 <Stat label="정 편차" value={result.score.chiefSpread} />
                 <Stat label="부 편차" value={result.score.assistantSpread} />
