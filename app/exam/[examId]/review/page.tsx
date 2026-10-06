@@ -22,9 +22,13 @@ import {
 } from "@/lib/algorithm/excludeVisualization";
 import {
   classifyManualAssignFit,
+  confirmManualC4Override,
   confirmManualC8Override,
   confirmManualC7bOverride,
   evaluateForManualAssign,
+  isManualOverrideReason,
+  manualAssignReasonMessages,
+  manualOverrideReasonFor,
 } from "@/lib/algorithm/manualAssignValidation";
 import { computeAverageTotalFatigue } from "@/lib/algorithm/averageFatigue";
 import { FatigueSummaryLine } from "@/components/FatigueSummaryLine";
@@ -263,9 +267,15 @@ export default function ReviewPage() {
       if (!slot || !teacher) return;
       if (existing?.fixed) return;
 
+      // 이 슬롯에 남아 있는 이전 수동 예외는 평가에서 빼야, 같은 교사를 다시 선택해도 예외 여부를 다시 확인한다.
+      const generatedOverride = exam.preassigns.find(
+        (p) => p.dutySlotId === slotId && isManualOverrideReason(p.reason),
+      );
       const evaluation = evaluateForManualAssign(
         {
-          exam,
+          exam: generatedOverride
+            ? { ...exam, preassigns: exam.preassigns.filter((p) => p.id !== generatedOverride.id) }
+            : exam,
           assignments: exam.assignments.filter((a) => a.dutySlotId !== slotId),
         },
         slot,
@@ -279,6 +289,9 @@ export default function ReviewPage() {
         });
         return;
       }
+      if (evaluation.needsC4Confirm && !confirmManualC4Override(evaluation.c4)) {
+        return;
+      }
       if (evaluation.needsC7bConfirm && !confirmManualC7bOverride(evaluation.c7b)) {
         return;
       }
@@ -286,20 +299,17 @@ export default function ReviewPage() {
         return;
       }
 
-      const manualC8Reason = "manual-C8-override";
-      const generatedC8Override = exam.preassigns.find(
-        (p) => p.dutySlotId === slotId && p.reason === manualC8Reason,
-      );
-      if (evaluation.needsC8Confirm) {
+      const overrideReason = manualOverrideReasonFor(evaluation);
+      if (overrideReason) {
         m.upsertPreassign({
-          id: generatedC8Override?.id ?? newId(),
+          id: generatedOverride?.id ?? newId(),
           teacherId,
           dutySlotId: slotId,
           priority: "preferred",
-          reason: manualC8Reason,
+          reason: overrideReason,
         });
-      } else if (generatedC8Override) {
-        m.removePreassign(generatedC8Override.id);
+      } else if (generatedOverride) {
+        m.removePreassign(generatedOverride.id);
       }
 
       m.upsertAssignment(
@@ -316,10 +326,10 @@ export default function ReviewPage() {
     onClear: (slotId: string) => {
       const existing = exam.assignments.find((a) => a.dutySlotId === slotId);
       if (existing && !existing.fixed) m.removeAssignment(existing.id);
-      const generatedC8Override = exam.preassigns.find(
-        (p) => p.dutySlotId === slotId && p.reason === "manual-C8-override",
+      const generatedOverride = exam.preassigns.find(
+        (p) => p.dutySlotId === slotId && isManualOverrideReason(p.reason),
       );
-      if (generatedC8Override) m.removePreassign(generatedC8Override.id);
+      if (generatedOverride) m.removePreassign(generatedOverride.id);
     },
     onToggleFixed: (slotId: string) => {
       const existing = exam.assignments.find((a) => a.dutySlotId === slotId);
@@ -1215,7 +1225,7 @@ function EmptyTeacherCellEditor({
           slot,
           roomName: roomById.get(slot.roomId) ?? slot.roomId,
           fit,
-          reasons: [...evaluation.blocking, ...evaluation.c7b, ...evaluation.c8].map((x) => x.message),
+          reasons: manualAssignReasonMessages(evaluation),
         };
       })
       .sort((a, b) => {
@@ -1316,7 +1326,7 @@ function SlotEditor({
       result.push({
         teacher: t,
         fit: classifyManualAssignFit(ctx, slot, t),
-        reasons: [...evaluation.blocking, ...evaluation.c7b, ...evaluation.c8].map((rs) => rs.message),
+        reasons: manualAssignReasonMessages(evaluation),
         total,
       });
     }

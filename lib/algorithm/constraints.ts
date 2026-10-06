@@ -226,7 +226,19 @@ export function checkHealthTeacherUnique(
   return OK;
 }
 
-// C4: 강사는 부감독만 가능.
+/** 수동 수정에서 사용자가 확인하고 C4(강사 부감독만)를 예외 처리한 배정의 STEP 9 사유. */
+export const MANUAL_C4_OVERRIDE_REASON = "manual-C4-override";
+
+function hasManualC4Override(exam: Exam, teacherId: string, dutySlotId: string): boolean {
+  return exam.preassigns.some(
+    (p) =>
+      p.teacherId === teacherId &&
+      p.dutySlotId === dutySlotId &&
+      p.reason === MANUAL_C4_OVERRIDE_REASON,
+  );
+}
+
+// C4: 강사는 부감독만 가능. 자동 배정에는 예외가 없고, 수동 수정에서 확인한 배정만 예외로 통과한다.
 export function checkLecturerAssistantOnly(
   ctx: ConstraintContext,
   slot: DutySlot,
@@ -235,6 +247,7 @@ export function checkLecturerAssistantOnly(
   if (!isLecturer(teacher)) return OK;
   const dt = dutyTypeFromCtx(ctx, slot.dutyTypeId);
   if (isAssistant(dt)) return OK;
+  if (hasManualC4Override(ctx.exam, teacher.id, slot.id)) return OK;
   const dutyName = dt?.name ?? "감독";
   return {
     ok: false,

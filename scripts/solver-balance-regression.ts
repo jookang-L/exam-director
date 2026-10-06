@@ -3,7 +3,12 @@ import type { Assignment, DutySlot, Exam, Teacher } from "../lib/types";
 import { teacherDutyWeight, teacherTotalFatigue } from "../lib/algorithm/fatigue";
 import { createSampleExam } from "../lib/sample";
 import { computeAverageTotalFatigue } from "../lib/algorithm/averageFatigue";
-import { evaluateAll } from "../lib/algorithm/constraints";
+import { evaluateAll, MANUAL_C4_OVERRIDE_REASON } from "../lib/algorithm/constraints";
+import {
+  classifyManualAssignFit,
+  evaluateForManualAssign,
+  manualOverrideReasonFor,
+} from "../lib/algorithm/manualAssignValidation";
 import { teacherTeachesSubject } from "../lib/algorithm/examSubjectRules";
 import { buildFixedAssignments } from "../lib/algorithm/fixed";
 import { findBalanceHintSuggestions } from "../lib/algorithm/balanceHints";
@@ -191,6 +196,91 @@ const c8Step9Override = evaluateAll(
   japaneseTeacher,
 );
 assert.equal(c8Step9Override.ok, true);
+
+const lecturer: Teacher = { ...teacher, id: "lec", name: "강사", roleType: "강사" };
+const c4Exam: Exam = {
+  ...constraintExam,
+  teachers: [lecturer],
+  dutyTypes: [...constraintExam.dutyTypes, { id: "assistant", name: "부감독", weight: 100 }],
+  dutySlots: [
+    ...constraintExam.dutySlots,
+    { id: "p1-assistant", date: "2026-06-01", period: 1, roomId: "r", dutyTypeId: "assistant" },
+  ],
+};
+const c4Slot = (id: string) => c4Exam.dutySlots.find((item) => item.id === id)!;
+const c4Chief = evaluateAll({ exam: c4Exam, assignments: [] }, c4Slot("p1"), lecturer);
+assert.ok(c4Chief.reasons.some((reason) => reason.code === "C4"));
+assert.equal(
+  evaluateAll({ exam: c4Exam, assignments: [] }, c4Slot("p1-assistant"), lecturer).ok,
+  true,
+);
+// 수동 예외는 해당 (강사, 슬롯) 쌍에만 적용된다 — 같은 강사의 다른 정감독 슬롯은 계속 C4로 막힌다.
+const c4ManualExam: Exam = {
+  ...c4Exam,
+  preassigns: [
+    {
+      id: "pre-c4",
+      teacherId: "lec",
+      dutySlotId: "p1",
+      priority: "preferred",
+      reason: MANUAL_C4_OVERRIDE_REASON,
+    },
+  ],
+};
+assert.equal(evaluateAll({ exam: c4ManualExam, assignments: [] }, c4Slot("p1"), lecturer).ok, true);
+assert.ok(
+  evaluateAll({ exam: c4ManualExam, assignments: [] }, c4Slot("p3"), lecturer).reasons.some(
+    (reason) => reason.code === "C4",
+  ),
+);
+// 같은 슬롯이라도 예외를 확인받은 강사가 아닌 다른 강사는 계속 C4로 막힌다.
+const otherLecturer: Teacher = { ...lecturer, id: "lec2", name: "다른강사" };
+assert.ok(
+  evaluateAll(
+    { exam: { ...c4ManualExam, teachers: [lecturer, otherLecturer] }, assignments: [] },
+    c4Slot("p1"),
+    otherLecturer,
+  ).reasons.some((reason) => reason.code === "C4"),
+);
+// 일반 STEP 9 우선/고정 배정은 C4를 풀지 않는다.
+const c4Step9Exam: Exam = {
+  ...c4Exam,
+  preassigns: [{ id: "pre-c4-step9", teacherId: "lec", dutySlotId: "p1", priority: "fixed" }],
+};
+assert.ok(
+  evaluateAll({ exam: c4Step9Exam, assignments: [] }, c4Slot("p1"), lecturer).reasons.some(
+    (reason) => reason.code === "C4",
+  ),
+);
+// 수동 수정 평가: C4 단독이면 확인 후 허용, 다른 차단 사유가 겹치면 거부.
+const c4Manual = evaluateForManualAssign({ exam: c4Exam, assignments: [] }, c4Slot("p1"), lecturer);
+assert.equal(c4Manual.allowed, true);
+assert.equal(c4Manual.needsC4Confirm, true);
+assert.equal(manualOverrideReasonFor(c4Manual), MANUAL_C4_OVERRIDE_REASON);
+assert.equal(
+  classifyManualAssignFit({ exam: c4Exam, assignments: [] }, c4Slot("p1"), lecturer),
+  "warning",
+);
+const c4WithBlocking = evaluateForManualAssign(
+  { exam: c4Exam, assignments: [{ ...assignment("lec-a1", "p1"), teacherId: "lec" }] },
+  c4Slot("p1-other"),
+  lecturer,
+);
+assert.equal(c4WithBlocking.allowed, false);
+assert.ok(c4WithBlocking.blocking.some((reason) => reason.code === "CC"));
+// 자동 배정은 강사를 정감독에 쓰지 않는다 — 강사가 유일한 후보여도 정감독 슬롯은 비워 둔다.
+const c4AutoExam: Exam = {
+  ...c4Exam,
+  teachers: [lecturer],
+  dutySlots: c4Exam.dutySlots.filter((item) => item.id === "p1" || item.id === "p1-assistant"),
+};
+const c4AutoResult = runSolver(c4AutoExam, { seed: 1 });
+assert.deepEqual(
+  c4AutoResult.assignments.map((a) => a.dutySlotId),
+  ["p1-assistant"],
+  "자동 배정은 강사를 부감독에만 배정해야 한다",
+);
+assert.deepEqual(c4AutoResult.unassigned.map((s) => s.id), ["p1"]);
 
 const invalidC7a = evaluateAll(
   {
