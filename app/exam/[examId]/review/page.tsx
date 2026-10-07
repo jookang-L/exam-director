@@ -85,6 +85,14 @@ function normalizeTeacherSearch(value: string): string {
   return value.trim().toLocaleLowerCase("ko-KR").replace(/\s+/g, "");
 }
 
+/** 쉼표·세미콜론·줄바꿈으로 구분한 여러 검색어 (예: "김철수, 이영희"). 공백은 구분자가 아니다. */
+function parseTeacherSearchTerms(value: string): string[] {
+  return value
+    .split(/[,，、;；\n]+/)
+    .map(normalizeTeacherSearch)
+    .filter((term) => term.length > 0);
+}
+
 function teacherSearchText(teacher: Teacher): string {
   return normalizeTeacherSearch(
     [
@@ -377,12 +385,13 @@ export default function ReviewPage() {
               </Button>
             ))}
             <div className="flex-1" />
-            <div className="relative w-full min-w-[12rem] sm:w-56">
+            <div className="relative w-full min-w-[12rem] sm:w-72">
               <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={teacherQuery}
                 onChange={(e) => setTeacherQuery(e.target.value)}
-                placeholder="교사 검색"
+                placeholder="교사 검색 (쉼표로 여러 명: 김철수, 이영희)"
+                title="쉼표(,)로 구분하면 여러 교사를 한꺼번에 검색합니다."
                 className="h-9 pl-8 pr-8"
               />
               {teacherQuery ? (
@@ -581,16 +590,27 @@ function TeacherDayGrid({
     }
   };
 
-  const teachers = React.useMemo(() => {
+  const searchTerms = React.useMemo(() => parseTeacherSearchTerms(teacherQuery), [teacherQuery]);
+
+  const searchPool = React.useMemo(() => {
     const assignedIds = new Set(lookup.keys());
-    const normalizedQuery = normalizeTeacherSearch(teacherQuery);
-    const list = showAllTeachers
+    return showAllTeachers
       ? [...exam.teachers]
       : exam.teachers.filter((t) => assignedIds.has(t.id));
-    return list
+  }, [exam.teachers, lookup, showAllTeachers]);
+
+  const unmatchedTerms = React.useMemo(() => {
+    if (searchTerms.length < 2) return [];
+    const texts = searchPool.map(teacherSearchText);
+    return searchTerms.filter((term) => !texts.some((text) => text.includes(term)));
+  }, [searchPool, searchTerms]);
+
+  const teachers = React.useMemo(() => {
+    return searchPool
       .filter((teacher) => {
-        if (!normalizedQuery) return true;
-        return teacherSearchText(teacher).includes(normalizedQuery);
+        if (searchTerms.length === 0) return true;
+        const text = teacherSearchText(teacher);
+        return searchTerms.some((term) => text.includes(term));
       })
       .sort((a, b) => {
         if (sortKey !== "name") {
@@ -602,7 +622,7 @@ function TeacherDayGrid({
         const diff = a.name.localeCompare(b.name, "ko");
         return sortAsc ? diff : -diff;
       });
-  }, [exam.teachers, lookup, showAllTeachers, teacherQuery, sortKey, sortAsc, fatigueByTeacher]);
+  }, [searchPool, searchTerms, sortKey, sortAsc, fatigueByTeacher]);
 
   const classLookup = React.useMemo(
     () =>
@@ -624,7 +644,7 @@ function TeacherDayGrid({
       TEACHER_GRID_FATIGUE_COL_REM * TEACHER_GRID_FATIGUE_COLUMNS.length +
       TEACHER_GRID_COUNT_COL_REM * index
     }rem`;
-  const hasTeacherQuery = normalizeTeacherSearch(teacherQuery).length > 0;
+  const hasTeacherQuery = searchTerms.length > 0;
 
   return (
     <Card>
@@ -637,7 +657,13 @@ function TeacherDayGrid({
             {showAllTeachers
               ? "전체 교사 · 빈 칸은 해당 교시·감독에 배정 없음"
               : `이 날 배정된 교사 ${teachers.length}명`}
+            {hasTeacherQuery ? ` · 검색 결과 ${teachers.length}명` : ""}
           </span>
+          {unmatchedTerms.length > 0 ? (
+            <span className="text-[11px] font-medium text-amber-700">
+              일치하는 교사 없음: {unmatchedTerms.join(", ")}
+            </span>
+          ) : null}
             <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
             <span className={cn("inline-block h-3 w-3 rounded border border-yellow-500", TEACHER_GRID_CLASS_SHADE_CLASS)} />
             노랑 = 정규 수업
