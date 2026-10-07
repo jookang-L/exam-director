@@ -32,7 +32,7 @@ export const FINAL_RULE_CATALOG: Array<{
   {
     code: "C7b",
     label: "C7b",
-    description: "3교시 배정 시 가운데 교시 자습감독 (강사 면제)",
+    description: "3교시 배정 시 가운데 교시 자습감독 또는 복도감독 (강사 면제)",
     required: false,
   },
   {

@@ -20,6 +20,7 @@ import {
   evaluateAll,
   isAllowedByAll,
   isEvaluationOfficer,
+  isMiddleBufferDutyName,
   type ConstraintContext,
   type ConstraintReason,
 } from "./constraints";
@@ -578,10 +579,11 @@ function c7PostProcess(
       const sorted = [...arr].sort((a, b) => a.slot.period - b.slot.period);
       const minPeriod = sorted[0]!.slot.period;
       const maxPeriod = sorted[sorted.length - 1]!.slot.period;
-      const hasMiddleSelfStudy = sorted.some(
-        (x) => x.dtName === "자습감독" && x.slot.period > minPeriod && x.slot.period < maxPeriod,
+      const hasMiddleBuffer = sorted.some(
+        (x) =>
+          isMiddleBufferDutyName(x.dtName) && x.slot.period > minPeriod && x.slot.period < maxPeriod,
       );
-      if (hasMiddleSelfStudy) return;
+      if (hasMiddleBuffer) return;
       for (const cur of arr) {
         const curAssign = assignments[cur.idx]!;
         if (curAssign.fixed) continue;
@@ -595,7 +597,7 @@ function c7PostProcess(
           if (otherSlot.date !== cur.slot.date) return false;
           if (otherSlot.period <= minPeriod || otherSlot.period >= maxPeriod) return false;
           const otherDt = lookups.dutyTypeById.get(otherSlot.dutyTypeId);
-          return otherDt?.name === "자습감독";
+          return isMiddleBufferDutyName(otherDt?.name);
         });
         for (const swap of candidateSwaps) {
           const swapSlot = lookups.slotById.get(swap.dutySlotId)!;

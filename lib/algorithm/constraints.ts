@@ -67,13 +67,21 @@ function collectTeacherDaySlots(
   return entries;
 }
 
-function hasMiddleSelfStudy(entries: TeacherDaySlotEntry[]): boolean {
+/** C7b — 하루 3교시 감독의 가운데 교시로 인정하는 감독: 자습감독 또는 복도감독 */
+const MIDDLE_BUFFER_DUTY_NAMES = ["자습감독", "복도감독"];
+
+export function isMiddleBufferDutyName(name: string | undefined): boolean {
+  return name != null && MIDDLE_BUFFER_DUTY_NAMES.includes(name);
+}
+
+function hasMiddleBuffer(entries: TeacherDaySlotEntry[]): boolean {
   if (entries.length !== MAX_DUTY_SLOTS_PER_DAY) return true;
   const sorted = [...entries].sort((a, b) => a.slot.period - b.slot.period);
   const minPeriod = sorted[0]!.slot.period;
   const maxPeriod = sorted[sorted.length - 1]!.slot.period;
   return sorted.some(
-    (x) => isSelfStudy(x.dt) && x.slot.period > minPeriod && x.slot.period < maxPeriod,
+    (x) =>
+      isMiddleBufferDutyName(x.dt?.name) && x.slot.period > minPeriod && x.slot.period < maxPeriod,
   );
 }
 
@@ -410,7 +418,7 @@ export function checkC7DailyLimit(
   return OK;
 }
 
-// C7b: 3교시인 경우 가운데 교시에 자습감독 1개 (강사 제외 — 부감독만)
+// C7b: 3교시인 경우 가운데 교시에 자습감독 또는 복도감독 1개 (강사 제외 — 부감독만)
 export function checkC7Buffer(
   ctx: ConstraintContext,
   slot: DutySlot,
@@ -424,13 +432,13 @@ export function checkC7Buffer(
   const entries = collectTeacherDaySlots(ctx, teacher, slot.date, slot, ownAlreadyOnSlot);
   if (entries.length < MAX_DUTY_SLOTS_PER_DAY) return OK;
 
-  if (hasMiddleSelfStudy(entries)) return OK;
+  if (hasMiddleBuffer(entries)) return OK;
 
   return {
     ok: false,
     reason: {
       code: "C7b",
-      message: `하루 ${MAX_DUTY_SLOTS_PER_DAY}교시 배정 시 가운데 교시에 자습감독이 필요합니다`,
+      message: `하루 ${MAX_DUTY_SLOTS_PER_DAY}교시 배정 시 가운데 교시에 자습감독 또는 복도감독이 필요합니다`,
     },
   };
 }

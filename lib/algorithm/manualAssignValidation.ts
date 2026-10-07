@@ -150,10 +150,10 @@ export function confirmManualC4Override(c4: readonly ConstraintReason[]): boolea
 export function c7bConfirmMessage(c7b: readonly ConstraintReason[]): string {
   const lines = c7b.map((reason) => `· ${reason.message}`);
   return [
-    "C7b 경고: 하루 3교시 배정 시 가운데 교시는 자습감독이어야 합니다.",
+    "C7b 경고: 하루 3교시 배정 시 가운데 교시는 자습감독 또는 복도감독이어야 합니다.",
     ...lines,
     "",
-    "자동 배정에서는 적용되지 않지만, 수동 반영 시 예외로 허용할 수 있습니다.",
+    "수동 반영 시에는 예외로 허용할 수 있습니다.",
     "그래도 배정하시겠습니까?",
   ].join("\n");
 }

@@ -162,6 +162,34 @@ const validC7b = evaluateAll(
 );
 assert.equal(validC7b.ok, true);
 
+// C7b: 가운데 교시가 복도감독이어도 통과
+const hallC7bExam: Exam = {
+  ...constraintExam,
+  dutyTypes: [...constraintExam.dutyTypes, { id: "hall", name: "복도감독", weight: 30 }],
+  dutySlots: [
+    ...constraintExam.dutySlots,
+    { id: "p2-hall", date: "2026-06-01", period: 2, roomId: "r", dutyTypeId: "hall" },
+  ],
+};
+const validHallC7b = evaluateAll(
+  {
+    exam: hallC7bExam,
+    assignments: [assignment("a1", "p1"), assignment("a3", "p3")],
+  },
+  hallC7bExam.dutySlots.find((item) => item.id === "p2-hall")!,
+  teacher,
+);
+assert.equal(validHallC7b.ok, true);
+const validHallC7bLast = evaluateAll(
+  {
+    exam: hallC7bExam,
+    assignments: [assignment("a1", "p1"), assignment("a2", "p2-hall")],
+  },
+  hallC7bExam.dutySlots.find((item) => item.id === "p3")!,
+  teacher,
+);
+assert.equal(validHallC7bLast.ok, true);
+
 const japaneseTeacher: Teacher = {
   ...teacher,
   id: "jp",
@@ -565,7 +593,7 @@ const sampleScore = scoreSolverResult(sample, solved, samplePlan);
 assert.ok(Math.abs(sampleTargetSum - sampleActualSum) < 1e-6);
 assert.ok(Math.abs(sampleTargetSum - 25820) < 1e-6);
 assert.ok(Math.abs(sampleScore.maxTargetExcess - 119.65201465201505) < 1e-6);
-assert.ok(Math.abs(sampleScore.targetSSD - 1035129.3040293045) < 1e-4);
+assert.ok(Math.abs(sampleScore.targetSSD - 1033100.7326007332) < 1e-4);
 
 console.log(
   JSON.stringify(

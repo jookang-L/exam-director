@@ -44,7 +44,7 @@ export default function DutiesPage() {
           <CardTitle>감독 종류</CardTitle>
           <CardDescription>
             기본값: 정·부감독 100, 자습·복도 30, 특별실 100. 「기본값 복원」으로 맞출 수 있습니다.
-            "자습감독"과 "복도감독" 이름은 C7 완충 규칙에서 그대로 사용됩니다.
+            "자습감독"과 "복도감독" 이름은 C7b 규칙(하루 3교시의 가운데 교시)에서 그대로 사용됩니다.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
