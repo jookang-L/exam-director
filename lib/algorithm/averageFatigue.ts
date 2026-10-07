@@ -1,6 +1,6 @@
 import type { Exam, Teacher } from "@/lib/types";
 import { isDutyAllowRule, isEvaluationOfficer } from "./constraints";
-import { teacherTotalFatigue } from "./fatigue";
+import { teacherExamBurden, teacherTotalFatigue } from "./fatigue";
 import { examPeriodDates } from "./timetableFatigue";
 
 export function isLecturerOrNutritionTeacher(teacher: Teacher): boolean {
@@ -107,6 +107,37 @@ export function computeAverageTotalFatigue(exam: Exam): AverageTotalFatigueResul
     excludedByFullExclude,
     excludedNoPrevious,
     veteransOnly,
+    lowest: pool[0],
+    highest: pool[pool.length - 1],
+  };
+}
+
+export type CurrentExamFatigueResult = {
+  average: number;
+  count: number;
+  /** total = 이번 시험 곤란도 (감독 + 시험 기간 수업 부담, 이월 이전 점수 제외) */
+  highest: FatigueTeacherExtreme | null;
+  lowest: FatigueTeacherExtreme | null;
+};
+
+/**
+ * 이번 시험 곤란도(이월 이전 점수를 더하지 않은 값)의 평균·최고·최저.
+ * 강사·영양·평가담당·고사기간 전체 제외 교사는 뺀다. 이전 곤란도 0인 신규 교사는
+ * 이번 시험에서 같은 일을 했으므로 포함한다 (총 곤란도 통계와 달리 이월 점수가 값에 섞이지 않는다).
+ */
+export function computeCurrentExamFatigue(exam: Exam): CurrentExamFatigueResult {
+  const pool: FatigueTeacherExtreme[] = exam.teachers
+    .filter((t) => isIncludedInAverageFatigue(exam, t))
+    .map((t) => ({ teacher: t, total: teacherExamBurden(exam, t.id) }));
+
+  if (pool.length === 0) return { average: 0, count: 0, highest: null, lowest: null };
+
+  pool.sort((a, b) => a.total - b.total || a.teacher.name.localeCompare(b.teacher.name, "ko"));
+  const sum = pool.reduce((s, e) => s + e.total, 0);
+
+  return {
+    average: sum / pool.length,
+    count: pool.length,
     lowest: pool[0],
     highest: pool[pool.length - 1],
   };

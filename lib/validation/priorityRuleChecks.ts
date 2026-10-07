@@ -1,5 +1,6 @@
 import type { Assignment, DutySlot, Exam } from "@/lib/types";
 import { nutritionTeacherSchedule } from "@/lib/algorithm/nutritionTeachers";
+import { isManualOverrideReason } from "@/lib/algorithm/manualAssignValidation";
 import { dateWithWeekday } from "@/lib/utils";
 
 function findDutyTypeIdByName(exam: Exam, name: string): string | undefined {
@@ -107,4 +108,51 @@ export function checkC9ScheduleCompliance(exam: Exam, assignments: Assignment[])
   }
 
   return failures;
+}
+
+export type PreassignComplianceResult = {
+  /** STEP 9 「고정」 지정이 지켜지지 않은 건 */
+  fixed: string[];
+  /** STEP 9 「우선」 지정이 지켜지지 않은 건 */
+  preferred: string[];
+};
+
+/**
+ * STEP 9: 지정한 교사가 지정한 슬롯에 실제로 배정되어 있는지.
+ * STEP 12 수동 예외(C4·C8 확인)로 자동 생성된 항목은 사용자가 STEP 9에서 입력한 지정이 아니므로 제외한다.
+ */
+export function checkPreassignCompliance(
+  exam: Exam,
+  assignments: Assignment[],
+): PreassignComplianceResult {
+  const bySlot = assignmentBySlot(assignments);
+  const result: PreassignComplianceResult = { fixed: [], preferred: [] };
+
+  for (const p of exam.preassigns) {
+    if (isManualOverrideReason(p.reason)) continue;
+    const bucket = p.priority === "fixed" ? result.fixed : result.preferred;
+    const teacher = exam.teachers.find((t) => t.id === p.teacherId);
+    const slot = exam.dutySlots.find((s) => s.id === p.dutySlotId);
+    if (!teacher) {
+      bucket.push(`지정한 교사를 찾을 수 없음 (id: ${p.teacherId})`);
+      continue;
+    }
+    if (!slot) {
+      bucket.push(`${teacher.name}: 지정한 감독 슬롯을 찾을 수 없음`);
+      continue;
+    }
+
+    const assigned = bySlot.get(slot.id);
+    if (assigned?.teacherId === teacher.id) continue;
+
+    const room = exam.rooms.find((r) => r.id === slot.roomId)?.name ?? slot.roomId;
+    const dutyName = exam.dutyTypes.find((d) => d.id === slot.dutyTypeId)?.name ?? "";
+    bucket.push(
+      `${teacher.name} → ${dateWithWeekday(slot.date)} ${slot.period}교시 ${room} ${dutyName} — ${
+        assigned ? `실제 ${teacherName(exam, assigned.teacherId)}` : "미배정"
+      }`,
+    );
+  }
+
+  return result;
 }
