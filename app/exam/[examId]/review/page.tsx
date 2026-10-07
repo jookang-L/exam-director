@@ -6,7 +6,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StepNavButtons } from "@/components/wizard/WizardFrame";
-import { Check, Lock, Unlock, Wand2, ArrowDown, ArrowUp, Download, Search, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowLeftRight,
+  ArrowUp,
+  Check,
+  Download,
+  Lock,
+  Search,
+  Unlock,
+  Wand2,
+  X,
+} from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -30,6 +41,7 @@ import {
   manualAssignReasonMessages,
   manualOverrideReasonFor,
 } from "@/lib/algorithm/manualAssignValidation";
+import { planSlotSwap, swapConfirmMessage } from "@/lib/algorithm/slotSwap";
 import { computeAverageTotalFatigue } from "@/lib/algorithm/averageFatigue";
 import { FatigueSummaryLine } from "@/components/FatigueSummaryLine";
 import { reassignSubsetAsync } from "@/lib/algorithm/runSolverAsync";
@@ -344,6 +356,26 @@ export default function ReviewPage() {
       if (!existing) return;
       m.setFixed(existing.id, !existing.fixed);
     },
+    /** 두 칸의 교사를 서로 맞바꾼다. 교체했으면 true, 막히거나 취소했으면 false. */
+    onSwap: (slotIdA: string, slotIdB: string): boolean => {
+      const plan = planSlotSwap(exam, slotIdA, slotIdB);
+      if (!plan.ok) {
+        toast({ title: "바꿀 수 없습니다", description: plan.message, variant: "destructive" });
+        return false;
+      }
+      if (plan.exceptionMessages.length > 0 && !window.confirm(swapConfirmMessage(plan.exceptionMessages))) {
+        return false;
+      }
+      m.patchExam({ assignments: plan.assignments, preassigns: plan.preassigns });
+      const [a, b] = plan.sides;
+      toast({
+        title: `${a.teacher.name} ⇄ ${b.teacher.name} 교체 완료`,
+        description:
+          plan.exceptionMessages.length > 0 ? "확인한 예외가 반영되었습니다." : undefined,
+        variant: "success",
+      });
+      return true;
+    },
   };
 
   return (
@@ -548,6 +580,7 @@ function TeacherDayGrid({
   onAssign,
   onClear,
   onToggleFixed,
+  onSwap,
 }: {
   exam: Exam;
   date: string;
@@ -558,10 +591,66 @@ function TeacherDayGrid({
   onAssign: (slotId: string, teacherId: string) => void;
   onClear: (slotId: string) => void;
   onToggleFixed: (slotId: string) => void;
+  onSwap: (slotIdA: string, slotIdB: string) => boolean;
 }) {
   type SortKey = "name" | "previous" | "current" | "total";
   const [sortKey, setSortKey] = React.useState<SortKey>("previous");
   const [sortAsc, setSortAsc] = React.useState(false);
+  const [swapMode, setSwapMode] = React.useState(false);
+  const [swapPicks, setSwapPicks] = React.useState<string[]>([]);
+
+  // 바꾸기 모드에서 고른 칸. 날짜를 바꾸거나 배정이 사라지면(실행 취소 등) 선택에서 뺀다.
+  const validSwapPicks = React.useMemo(
+    () =>
+      swapPicks.filter((slotId) =>
+        exam.assignments.some((a) => a.dutySlotId === slotId),
+      ),
+    [swapPicks, exam.assignments],
+  );
+
+  const cancelSwap = React.useCallback(() => {
+    setSwapMode(false);
+    setSwapPicks([]);
+  }, []);
+
+  React.useEffect(() => {
+    setSwapPicks([]);
+  }, [date]);
+
+  React.useEffect(() => {
+    if (!swapMode) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") cancelSwap();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [swapMode, cancelSwap]);
+
+  const toggleSwapPick = (slotId: string) => {
+    setSwapPicks((prev) =>
+      prev.includes(slotId) ? prev.filter((id) => id !== slotId) : [...prev, slotId].slice(-2),
+    );
+  };
+
+  const runSwap = () => {
+    if (validSwapPicks.length !== 2) return;
+    if (onSwap(validSwapPicks[0]!, validSwapPicks[1]!)) cancelSwap();
+  };
+
+  const describeSwapPick = (slotId: string): string => {
+    const slot = exam.dutySlots.find((s) => s.id === slotId);
+    const assignment = exam.assignments.find((a) => a.dutySlotId === slotId);
+    const teacher = exam.teachers.find((t) => t.id === assignment?.teacherId);
+    const duty = exam.dutyTypes.find((d) => d.id === slot?.dutyTypeId)?.name ?? "";
+    return `${teacher?.name ?? "?"} ${slot?.period ?? "?"}교시 ${duty}`;
+  };
+
+  const swapHint =
+    validSwapPicks.length === 0
+      ? "바꿀 칸 2개를 클릭하세요."
+      : validSwapPicks.length === 1
+        ? `① ${describeSwapPick(validSwapPicks[0]!)} — 하나 더 클릭하세요.`
+        : `① ${describeSwapPick(validSwapPicks[0]!)} ⇄ ② ${describeSwapPick(validSwapPicks[1]!)}`;
 
   const rawPeriodGroups = React.useMemo(
     () => teacherGridPeriodGroupsForDate(exam, date, periods),
@@ -648,7 +737,8 @@ function TeacherDayGrid({
 
   return (
     <Card>
-      <CardHeader className="pb-2">
+      <CardHeader className="gap-3 pb-2 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
+        <div className="min-w-0 space-y-1.5">
         <CardTitle>
           {dateWithWeekday(date)} — 교사별 감독표
         </CardTitle>
@@ -681,6 +771,49 @@ function TeacherDayGrid({
             누적 깜빡임 = 반영
           </span>
         </CardDescription>
+        </div>
+        <div className="flex min-w-0 shrink-0 items-center gap-2 sm:max-w-[55%]">
+          {swapMode ? (
+            <p
+              className="min-w-0 truncate text-[11px] text-muted-foreground"
+              title={swapHint}
+            >
+              {swapHint}
+            </p>
+          ) : null}
+          {swapMode ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="shrink-0"
+              onClick={cancelSwap}
+              title="바꾸기 취소 (Esc)"
+            >
+              취소
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={swapMode ? runSwap : () => setSwapMode(true)}
+            disabled={swapMode && validSwapPicks.length !== 2}
+            title={
+              swapMode
+                ? "선택한 두 칸의 교사를 서로 바꿉니다"
+                : "두 칸을 골라 교사를 서로 바꿉니다"
+            }
+            className={cn(
+              "shrink-0 border-2 border-red-500 font-semibold",
+              swapMode
+                ? "bg-red-600 text-white hover:bg-red-700 hover:text-white disabled:bg-red-600/40 disabled:text-white disabled:opacity-100"
+                : "text-red-600 hover:bg-red-50 hover:text-red-700",
+            )}
+          >
+            <ArrowLeftRight className="h-4 w-4" /> 바꾸기
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="p-0 sm:p-0">
         {colCount === 0 ? (
@@ -920,6 +1053,9 @@ function TeacherDayGrid({
                             onAssign={onAssign}
                             onClear={onClear}
                             onToggleFixed={onToggleFixed}
+                            swapMode={swapMode}
+                            swapPicks={validSwapPicks}
+                            onToggleSwap={toggleSwapPick}
                           />
                         ));
                       })}
@@ -1113,6 +1249,9 @@ function TeacherGridCell({
   onAssign,
   onClear,
   onToggleFixed,
+  swapMode,
+  swapPicks,
+  onToggleSwap,
 }: {
   exam: Exam;
   teacher: Teacher;
@@ -1125,6 +1264,10 @@ function TeacherGridCell({
   onAssign: (slotId: string, teacherId: string) => void;
   onClear: (slotId: string) => void;
   onToggleFixed: (slotId: string) => void;
+  /** 바꾸기 모드: 클릭이 편집 팝오버 대신 교체할 칸 선택이 된다 */
+  swapMode: boolean;
+  swapPicks: string[];
+  onToggleSwap: (slotId: string) => void;
 }) {
   const slotExcluded = cell ? isTeacherExcludedForSlot(exam, teacher, cell.slot) : false;
   const columnExcluded = !cell && periodExcluded;
@@ -1149,6 +1292,40 @@ function TeacherGridCell({
     const hasError = issues.some((i) => i.severity === "error");
     const hasWarning = issues.some((i) => i.severity === "warning");
     const issueTitle = issues.map((i) => i.message).join("\n");
+    if (swapMode) {
+      const pickOrder = swapPicks.indexOf(cell.slot.id) + 1;
+      const locked = cell.assignment.fixed;
+      return (
+        <td className={cn(cellClass, "p-0")}>
+          <button
+            type="button"
+            onClick={() => onToggleSwap(cell.slot.id)}
+            disabled={locked}
+            aria-pressed={pickOrder > 0}
+            className={cn(
+              "relative w-full min-h-[1.75rem] px-1 py-0.5 text-center transition-colors flex items-center justify-center gap-0.5",
+              pickOrder > 0
+                ? "bg-red-100 font-semibold text-red-900 ring-2 ring-inset ring-red-500"
+                : !locked && "hover:bg-red-50",
+              locked && "cursor-not-allowed opacity-50",
+            )}
+            title={
+              locked
+                ? "고정된 배정은 바꿀 수 없습니다"
+                : `${teacher.name} · ${cell.roomName} — 클릭하여 바꿀 칸으로 선택`
+            }
+          >
+            {pickOrder > 0 ? (
+              <span className="absolute left-0 top-0 rounded-br bg-red-600 px-1 text-[9px] leading-tight text-white">
+                {pickOrder}
+              </span>
+            ) : null}
+            <span className="truncate">{cell.roomName}</span>
+            {locked ? <Lock className="h-2.5 w-2.5 shrink-0 text-emerald-600" /> : null}
+          </button>
+        </td>
+      );
+    }
     return (
       <td className={cn(cellClass, "p-0")}>
         <Popover>
@@ -1179,6 +1356,25 @@ function TeacherGridCell({
             />
           </PopoverContent>
         </Popover>
+      </td>
+    );
+  }
+
+  if (swapMode) {
+    // 바꾸기 모드에서는 배정된 칸만 고를 수 있다. 빈 칸은 보기만 한다.
+    return (
+      <td className={cn(cellClass, "p-0", !excluded && "bg-muted/5")}>
+        <div
+          className={cn(
+            "flex min-h-[1.75rem] w-full items-center justify-center px-1 py-0.5 text-center",
+            excluded
+              ? cn(TEACHER_GRID_EXCLUDE_TEXT_CLASS, "font-medium")
+              : "text-muted-foreground/30",
+          )}
+          title={excludeTitle ?? undefined}
+        >
+          {excluded ? "제외" : "·"}
+        </div>
       </td>
     );
   }

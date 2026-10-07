@@ -9,7 +9,7 @@
 - Hard constraint + 배정 우선 규칙 기반 자동 배정 (그리디 + 제한 백트래킹)
 - 실시간 검증 — `evaluateAll()`이 자동 배정·수동 수정·사전 검증을 공유
 - Undo / Redo, 자물쇠 고정, 부분 재배정
-- **STEP 12** — 교사×교시 감독표 (누적 열·정렬·수업 음영), 화면과 동일 구조 **교사별 엑셀**
+- **STEP 12** — 교사×교시 감독표 (누적 열·정렬·수업 음영), 두 칸을 골라 교사를 서로 바꾸는 **바꾸기**, 화면과 동일 구조 **교사별 엑셀**
 - **STEP 13** — 감독 균형 힌트: 같은 날짜·교시의 정/부 ↔ 자습 교환 추천
 - **STEP 14** — 필수 규칙·STEP 7·STEP 9 최종 점검(확인 버튼으로 예외 통과), 총 곤란도·이번 시험 곤란도 평균/최고/최저
 - **STEP 15** — PDF (브라우저 인쇄), 일별 고사실표·개인별 통계 **엑셀**, JSON 출력
@@ -314,6 +314,7 @@ STEP 12 수동 수정 결과를 기준으로 같은 날짜·교시 안에서 정
 | `lib/algorithm/nutritionTeachers.ts` | 영양교사 날짜 분배 |
 | `lib/algorithm/examSubjectRules.ts` | C8 과목 매칭 기준 |
 | `lib/grid/teacherDayGrid.ts` | STEP 12 교사×교시 그리드 모델 |
+| `lib/algorithm/slotSwap.ts` | STEP 12 바꾸기 — 두 칸의 교사 교체 검증·적용 (수동 배정과 같은 규칙, C4·C7b·C8은 확인 후 예외) |
 | `lib/io/teacherGridExcel.ts` | STEP 12 교사별 감독표 엑셀 내보내기 |
 | `lib/algorithm/balanceHints.ts` | STEP 13 감독 균형 힌트 추천 |
 | `lib/grid/teacherGridLayout.ts` | STEP 12·13 엑셀 공통 열 레이아웃 |
