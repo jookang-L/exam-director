@@ -7,9 +7,11 @@ import { downloadBlob, weekdayKo } from "@/lib/utils";
  * 학교 양식 「정기시험 감독시간표」 엑셀 (날짜별 시트).
  * 열 = 학년별 반·특별실·통합교육실, 행 = 교시 블록(과목 줄 + 정/부 줄).
  *
- * - 음영은 넣지 않는다 (사용자가 조건부서식으로 직접 지정).
- * - 테두리는 기본(얇은 선)만 쓴다.
- * - 과목 줄은 수업/자습/복도만 채우고, 시험 교과명은 비워 둔다 (직접 입력).
+ * - 열별 음영: 학년 안에서 흰색 | 연한 색 | 흰색 | 연한 색 … 으로 열을 구분한다 (머리글·이름 칸, 파스텔 톤).
+ * - 테두리: 기본은 얇은 선, 학년별 바깥은 가장 굵은 선, 정/부 사이는 점선,
+ *   과목 줄에 색이 들어가는 칸(교과목·자습·복도)은 중간 굵기 선.
+ * - 과목 줄 색: 교과목=진한 남색, 자습·복도=진한 초록 (흰색 글자). 수업은 색 없음.
+ * - 과목 줄은 수업/자습/복도만 채우고, 시험 교과명은 비워 둔다 (직접 입력, 남색 칸에 흰 글자로 보인다).
  * - 복도감독은 학년별 반 묶음(HALL_DUTY_GROUPS)으로 과목 줄의 "복도"와 이름 칸을 함께 병합한다.
  *   (한 묶음에 복도감독 이름이 둘 이상이면 이름은 각자의 반 칸에 둔다.)
  */
@@ -62,7 +64,22 @@ const HEADER_ROW_MIN_HEIGHT = 117.75;
 const THIN: ExcelJS.Border = { style: "thin", color: { argb: "FF000000" } };
 /** 정/부 두 칸 사이의 구분선 (점선) */
 const DOTTED: ExcelJS.Border = { style: "dotted", color: { argb: "FF000000" } };
+/** 과목 줄 색칠 칸(교과목·자습·복도)의 테두리 */
+const MEDIUM: ExcelJS.Border = { style: "medium", color: { argb: "FF000000" } };
+/** 학년별 바깥 테두리 (가장 굵은 선) */
+const THICK: ExcelJS.Border = { style: "thick", color: { argb: "FF000000" } };
 const BOX: Partial<ExcelJS.Borders> = { top: THIN, left: THIN, bottom: THIN, right: THIN };
+
+/**
+ * 열별 음영 색 (연한 파스텔). 학년 안에서 두 번째·네 번째… 열에만 칠하고 첫 열부터 흰색 | 색 | 흰색 | 색 으로 번갈아 둔다.
+ * 색은 노랑 → 하늘 → 연두 → 살구 → 연보라 → 분홍 순서로 돌려 쓴다.
+ */
+const COLUMN_PASTELS = ["FFFFF2CC", "FFDDEBF7", "FFE2EFDA", "FFFCE4D6", "FFE4DFEC", "FFFBE5EE"];
+
+/** 과목 줄 색: 교과목=진한 남색, 자습·복도=진한 초록 (글자는 흰색) */
+const LABEL_FILL_SUBJECT = "FF1F3864";
+const LABEL_FILL_DUTY = "FF375623";
+const WHITE = "FFFFFFFF";
 
 type ColKind = "class" | "special" | "integrated";
 
@@ -72,6 +89,8 @@ type GridColumn = {
   label: string;
   roomId?: string;
   col: number;
+  /** 열별 음영 색 (ARGB). 없으면 흰색 */
+  fill?: string;
 };
 
 type Role = "chief" | "assist" | "study" | "hall";
@@ -152,6 +171,12 @@ function buildColumns(exam: Exam, warnings: string[]): GridColumn[] {
       cols.push({ grade, kind: "special", label: r.name.slice(prefix.length), roomId: r.id, col: next++ });
     }
     cols.push({ grade, kind: "integrated", label: INTEGRATED_LABEL[grade], col: next++ });
+
+    cols
+      .filter((c) => c.grade === grade)
+      .forEach((c, i) => {
+        if (i % 2 === 1) c.fill = COLUMN_PASTELS[((i - 1) / 2) % COLUMN_PASTELS.length];
+      });
   }
 
   const known = new Set(cols.map((c) => c.roomId).filter(Boolean));
@@ -332,11 +357,14 @@ function buildDateSheet(
       c.kind === "class"
         ? { vertical: "middle", horizontal: "center" }
         : { vertical: "middle", horizontal: "center", textRotation: "vertical" };
+    if (c.fill) cell.fill = solid(c.fill);
   }
 
   // ── 교시 블록 ──────────────────────────────────────────
   /** 정/부가 위아래 두 칸으로 나뉜 곳 — 둘 사이 선을 점선으로 바꾼다 */
   const splitPairs: Array<{ r2: number; r3: number; col: number }> = [];
+  /** 과목 줄에서 색이 들어간 칸(교과목·자습·복도) — 중간 굵기 테두리를 두른다 */
+  const labelBoxes: Array<{ r: number; from: number; to: number }> = [];
   let row = 4;
   for (const p of periods) {
     const r1 = row;
@@ -408,23 +436,27 @@ function buildDateSheet(
       const x = content.get(key(p, c)) ?? { label: "", group: "" };
       if (twoRowMode && !x.single && c.kind !== "integrated") {
         splitPairs.push({ r2, r3, col: c.col });
-        setNameCell(ws, r2, c.col, x.chief);
-        setNameCell(ws, r3, c.col, x.assist);
+        setNameCell(ws, r2, c.col, x.chief, c.fill);
+        setNameCell(ws, r3, c.col, x.assist, c.fill);
       } else {
         ws.mergeCellsWithoutStyle(r2, c.col, r3, c.col);
-        setNameCell(ws, r2, c.col, x.single);
-        setNameCell(ws, r3, c.col, undefined);
+        setNameCell(ws, r2, c.col, x.single, c.fill);
+        setNameCell(ws, r3, c.col, undefined, c.fill);
       }
     }
 
+    // 과목 줄: 교과목=남색, 자습·복도=초록 (흰색 글자, 중간 굵기 테두리). 수업·빈 칸은 색 없음.
     for (const g of labelGroups) {
       if (g.to > g.from) ws.mergeCellsWithoutStyle(r1, columns[g.from].col, r1, columns[g.to].col);
+      const fill = labelFill(g.key);
       for (let i = g.from; i <= g.to; i++) {
         const cell = ws.getCell(r1, columns[i].col);
         if (i === g.from) cell.value = g.text || undefined;
-        cell.font = { name: FONT, size: 12, bold: true };
+        cell.font = { name: FONT, size: 12, bold: true, ...(fill ? { color: { argb: WHITE } } : {}) };
         cell.alignment = { horizontal: "center", vertical: "middle", shrinkToFit: true };
+        if (fill) cell.fill = solid(fill);
       }
+      if (fill) labelBoxes.push({ r: r1, from: columns[g.from].col, to: columns[g.to].col });
     }
   }
 
@@ -447,13 +479,60 @@ function buildDateSheet(
     cell.border = BOX;
   }
 
-  // ── 테두리: 굵은 선 없이 기본(얇은 선)으로 통일 ──────────────
+  // ── 테두리 (아래로 갈수록 우선) ─────────────────────────────
+  // 이웃한 두 칸이 같은 선을 공유하므로 양쪽 칸에 같은 두께를 지정한다.
+  type Side = "top" | "left" | "bottom" | "right";
+  const setSide = (r: number, c: number, side: Side, border: ExcelJS.Border) => {
+    if (r < 1 || c < 1 || r > lastRow || c > lastCol) return;
+    const cell = ws.getCell(r, c);
+    cell.border = { ...cell.border, [side]: border };
+  };
+
+  // 1) 기본: 모든 칸 얇은 선
   for (let r = 2; r <= lastRow; r++) {
     for (let c = 1; c <= lastCol; c++) ws.getCell(r, c).border = BOX;
   }
+  // 2) 정/부 위아래 두 칸 사이: 점선
   for (const { r2, r3, col } of splitPairs) {
-    ws.getCell(r2, col).border = { ...BOX, bottom: DOTTED };
-    ws.getCell(r3, col).border = { ...BOX, top: DOTTED };
+    setSide(r2, col, "bottom", DOTTED);
+    setSide(r3, col, "top", DOTTED);
+  }
+  // 3) 과목 줄 색칠 칸(교과목·자습·복도): 중간 굵기 테두리
+  for (const { r, from, to } of labelBoxes) {
+    for (let c = from; c <= to; c++) {
+      setSide(r, c, "top", MEDIUM);
+      setSide(r - 1, c, "bottom", MEDIUM);
+      setSide(r, c, "bottom", MEDIUM);
+      setSide(r + 1, c, "top", MEDIUM);
+    }
+    setSide(r, from, "left", MEDIUM);
+    setSide(r, from - 1, "right", MEDIUM);
+    setSide(r, to, "right", MEDIUM);
+    setSide(r, to + 1, "left", MEDIUM);
+  }
+  // 4) 교시 칸(A)과 정/부 칸(B) 사이: 중간 굵기
+  for (let r = 2; r <= lastRow; r++) {
+    setSide(r, 1, "right", MEDIUM);
+    setSide(r, 2, "left", MEDIUM);
+  }
+  setSide(2, 2, "top", MEDIUM);
+  setSide(lastRow, 2, "bottom", MEDIUM);
+  // 5) 학년별 바깥 테두리: 가장 굵은 선 (학년 머리글 줄부터 마지막 줄까지)
+  for (const grade of GRADES) {
+    const gc = columns.filter((c) => c.grade === grade);
+    if (gc.length === 0) continue;
+    const first = gc[0].col;
+    const last = gc[gc.length - 1].col;
+    for (let r = 2; r <= lastRow; r++) {
+      setSide(r, first, "left", THICK);
+      setSide(r, first - 1, "right", THICK);
+      setSide(r, last, "right", THICK);
+      setSide(r, last + 1, "left", THICK);
+    }
+    for (let c = first; c <= last; c++) {
+      setSide(2, c, "top", THICK);
+      setSide(lastRow, c, "bottom", THICK);
+    }
   }
 
   // ── 인쇄·보기 설정 ───────────────────────────────────────
@@ -490,11 +569,29 @@ function groupLabels(
   return groups;
 }
 
-function setNameCell(ws: ExcelJS.Worksheet, r: number, c: number, value: string | undefined) {
+function setNameCell(
+  ws: ExcelJS.Worksheet,
+  r: number,
+  c: number,
+  value: string | undefined,
+  fill?: string,
+) {
   const cell = ws.getCell(r, c);
   if (value) cell.value = value;
   cell.font = { name: FONT, size: 12, bold: true };
   cell.alignment = { horizontal: "center", vertical: "middle", textRotation: "vertical" };
+  if (fill) cell.fill = solid(fill);
+}
+
+/** 과목 줄 그룹의 색 — 교과목=진한 남색, 자습·복도=진한 초록, 수업·빈 칸=없음 */
+function labelFill(groupKey: string): string | undefined {
+  if (groupKey.startsWith("exam:")) return LABEL_FILL_SUBJECT;
+  if (groupKey === "자습" || groupKey === "복도" || groupKey.startsWith("hall:")) return LABEL_FILL_DUTY;
+  return undefined;
+}
+
+function solid(argb: string): ExcelJS.Fill {
+  return { type: "pattern", pattern: "solid", fgColor: { argb } };
 }
 
 function letter(n: number): string {

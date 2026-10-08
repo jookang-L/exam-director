@@ -69,19 +69,28 @@ assert.equal(ws.getRow(4).height, 20.1, "과목 줄 높이 통일");
 assert.equal(ws.getRow(5).height, 100, "감독명 줄 높이 고정");
 assert.equal(ws.getRow(7).height, 20.1);
 
-// 2) 음영 없음 · 테두리는 얇은 선과 점선뿐
+// 2) 색·테두리 종류는 정해진 것만 쓴다
+const PASTELS = ["FFFFF2CC", "FFDDEBF7", "FFE2EFDA", "FFFCE4D6", "FFE4DFEC", "FFFBE5EE"];
+const NAVY = "FF1F3864"; // 교과목
+const GREEN = "FF375623"; // 자습·복도
+const fillOf = (r: number, c: number) => {
+  const f = ws.getCell(r, c).fill as { type?: string; pattern?: string; fgColor?: { argb?: string } } | undefined;
+  return f && f.type === "pattern" && f.pattern === "solid" ? f.fgColor?.argb : undefined;
+};
 const borderStyles = new Set<string>();
+const fills = new Set<string>();
 ws.eachRow({ includeEmpty: true }, (row) => {
   row.eachCell({ includeEmpty: true }, (cell) => {
-    const f = cell.fill as { type?: string; pattern?: string } | undefined;
-    assert.ok(!f || f.type !== "pattern" || f.pattern === "none", `음영 없음: ${cell.address}`);
+    const color = fillOf(cell.row as unknown as number, cell.col as unknown as number);
+    if (color) fills.add(color);
     for (const side of ["top", "left", "bottom", "right"] as const) {
       const s = cell.border?.[side]?.style;
       if (s) borderStyles.add(s);
     }
   });
 });
-assert.deepEqual([...borderStyles].sort(), ["dotted", "thin"]);
+assert.deepEqual([...borderStyles].sort(), ["dotted", "medium", "thick", "thin"]);
+for (const f of fills) assert.ok([...PASTELS, NAVY, GREEN].includes(f), `정해진 색만 사용: ${f}`);
 
 // 3) 수업/자습 라벨 — 1학년은 수업(통합교육실까지 병합), 2학년 자습, 2·3학년 통합교육실은 자습 없음
 const r1 = 4; // 1교시 과목 줄
@@ -124,6 +133,48 @@ assert.equal(ws.getCell(1, 1).value, "회귀시험 감독시간표(10.12. 월요
 assert.equal(ws.getCell(4, 1).value, "1교시\n8:40~9:30");
 const lookup = ws.getCell(6, ws.columnCount).value as { formula?: string } | null;
 assert.ok(lookup?.formula?.includes("COUNTIF($C$2:"), "감독 횟수 조회 수식");
+
+// 6-1) 열별 음영 — 학년 안에서 흰색 | 색 | 흰색 | 색, 머리글·이름 칸이 같은 색 (과목 줄은 제외)
+assert.equal(fillOf(3, col(2, 1)), undefined, "2학년 1반 열은 흰색");
+assert.equal(fillOf(3, col(2, 2)), PASTELS[0], "2학년 2반 열은 노랑");
+assert.equal(fillOf(3, col(2, 3)), undefined);
+assert.equal(fillOf(3, col(2, 4)), PASTELS[1]);
+assert.equal(fillOf(5, col(2, 2)), PASTELS[0], "이름 칸(자습)도 같은 색");
+assert.equal(fillOf(6, col(2, 2)), PASTELS[0], "병합된 아래 칸도 같은 색");
+assert.equal(fillOf(3, col(3, 2)), PASTELS[0], "3학년은 다시 흰색부터 시작");
+assert.equal(fillOf(3, g1 + 1), PASTELS[0], "1학년 2반 열도 노랑");
+// 3학년 특별실 첫 열은 학년 안 14번째 열(색 칠하는 차례) — 색 순서가 한 바퀴(6색) 돌아 처음 색으로 돌아간다
+assert.equal(fillOf(8, special), PASTELS[0], "특별실 열도 같은 규칙");
+assert.equal(fillOf(3, special), PASTELS[0]);
+assert.equal(fillOf(8, col(2, 5)), undefined, "복도 묶음 이름 칸(병합)은 열 색 없음");
+assert.equal(fillOf(r1 + 3 /* 2교시 과목 줄 */, col(2, 2)), undefined, "과목 줄 빈 칸은 색 없음");
+
+// 6-2) 과목 줄 색 — 자습·복도=진한 초록, 교과목=진한 남색 (흰 글자), 수업=없음
+const fontColor = (r: number, c: number) => (ws.getCell(r, c).font?.color as { argb?: string } | undefined)?.argb;
+assert.equal(fillOf(r1, g2), GREEN);
+assert.equal(fontColor(r1, g2), "FFFFFFFF");
+assert.equal(fillOf(7, hallFrom), GREEN, "복도");
+assert.equal(fontColor(7, hallFrom), "FFFFFFFF");
+assert.equal(fillOf(7, special), NAVY, "교과목(글자는 비워 둠)");
+assert.equal(fontColor(7, special), "FFFFFFFF");
+assert.equal(fillOf(r1, g1), undefined, "수업은 색 없음");
+const sideStyle = (r: number, c: number, side: "top" | "left" | "bottom" | "right") => ws.getCell(r, c).border?.[side]?.style;
+assert.equal(sideStyle(r1, col(2, 15), "right"), "medium", "색칠 칸 오른쪽은 중간 굵기");
+assert.equal(sideStyle(r1, g2 + 1, "top"), "medium");
+assert.equal(sideStyle(r1 + 1, g2 + 1, "top"), "medium", "아래 칸의 윗선도 같은 굵기");
+
+// 6-3) 학년별 바깥 테두리 = 가장 굵은 선, 교시/정부 칸 사이는 중간 굵기
+const lastRow = 9; // 가상 시험은 2교시까지: 4~9행
+assert.equal(sideStyle(2, g1, "top"), "thick");
+assert.equal(sideStyle(5, g1, "left"), "thick");
+assert.equal(sideStyle(5, g2 - 1, "right"), "thick", "1학년 오른쪽 끝");
+assert.equal(sideStyle(5, g2, "left"), "thick", "2학년 왼쪽 끝 (같은 선)");
+assert.equal(sideStyle(5, g3 - 1, "right"), "thick");
+assert.equal(sideStyle(lastRow, g1, "bottom"), "thick");
+assert.equal(sideStyle(lastRow, g3, "bottom"), "thick");
+assert.equal(sideStyle(5, col(2, 5), "left"), "thin", "학년 안쪽 칸 사이는 얇은 선");
+assert.equal(sideStyle(5, 2, "left"), "medium", "A·B 열 사이");
+assert.equal(sideStyle(2, 2, "top"), "medium");
 
 // 7) 미배정 슬롯은 경고, 빈 시험은 시트 없음
 const broken: Exam = { ...exam, assignments: exam.assignments.slice(1) };

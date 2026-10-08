@@ -52,8 +52,27 @@ function parseRange(a1: string): Range | null {
 }
 
 function borderCss(b?: Partial<ExcelJS.Border>): string {
-  if (!b?.style) return "none";
-  return b.style === "dotted" ? "1px dotted #000" : "1px solid #000";
+  switch (b?.style) {
+    case undefined:
+      return "none";
+    case "dotted":
+      return "1px dotted #000";
+    case "medium":
+      return "2px solid #000";
+    case "thick":
+      return "3px solid #000";
+    default:
+      return "1px solid #000"; // thin
+  }
+}
+
+/** ExcelJS ARGB(예: FFFFF2CC) → CSS 색 */
+function cssColor(argb?: string): string | undefined {
+  return argb && argb.length >= 6 ? `#${argb.slice(-6)}` : undefined;
+}
+
+function fillCss(fill?: ExcelJS.Fill): string | undefined {
+  return fill && fill.type === "pattern" && fill.pattern === "solid" ? cssColor(fill.fgColor?.argb) : undefined;
 }
 
 /** 12pt 굵은 글씨 기준 대략의 가로 길이(px): 한글 16, 영문·숫자 9, 공백 5 */
@@ -130,6 +149,8 @@ function toPreviewSheet(ws: ExcelJS.Worksheet): PreviewSheet {
           borderLeft: borderCss(cell.border?.left),
           borderRight: borderCss(ws.getCell(r, c2).border?.right),
           borderBottom: borderCss(ws.getCell(r2, c).border?.bottom),
+          backgroundColor: fillCss(cell.fill),
+          color: cssColor(cell.font?.color?.argb),
           fontSize,
           fontWeight: cell.font?.bold ? 700 : 400,
           textAlign: align.horizontal === "center" ? "center" : "left",
