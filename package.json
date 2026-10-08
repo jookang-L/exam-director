@@ -12,7 +12,8 @@
     "test:lecturer": "tsx scripts/lecturer-priority-regression.ts",
     "test:final": "tsx scripts/final-check-regression.ts",
     "test:swap": "tsx scripts/slot-swap-regression.ts",
-    "test:sheet": "tsx scripts/supervision-sheet-regression.ts"
+    "test:sheet": "tsx scripts/supervision-sheet-regression.ts",
+    "test:day": "tsx scripts/day-export-regression.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "6.1.0",

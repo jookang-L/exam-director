@@ -27,6 +27,7 @@ import {
   TEACHER_GRID_HEADER_TOP,
 } from "@/lib/grid/teacherGridLayout";
 import { GRID_BORDERS, HEADER_FILL, setupPrintableSheet, styleTitleRow } from "@/lib/io/excelFormat";
+import { dayFileLabel, downloadBlobsSequentially, examDays, examThroughDate } from "@/lib/io/dayExport";
 import { downloadBlob } from "@/lib/utils";
 
 const CLASS_FILL: ExcelJS.Fill = {
@@ -472,30 +473,68 @@ function buildTeacherGridSheet(
   ];
 }
 
-export async function exportTeacherGridWorkbook(
-  exam: Exam,
-  options?: { filenameSuffix?: string },
-) {
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+/** 교사별 감독표(감독누계) 통합문서. `titleNote`는 제목 줄 뒤에 붙는 설명 (예: 일별 누계 범위) */
+export function buildTeacherGridWorkbook(exam: Exam, options?: { titleNote?: string }): ExcelJS.Workbook {
   const wb = new ExcelJS.Workbook();
   wb.creator = "설화고 시험감독표";
   wb.created = new Date();
+  const note = options?.titleNote ? ` · ${options.titleNote}` : "";
 
   const ws = wb.addWorksheet("교사별감독표");
-  buildTeacherGridSheet(ws, exam);
+  buildTeacherGridSheet(ws, exam, note ? { titleSuffix: `교사별 감독표${note}` } : undefined);
 
   const bySubjectWs = wb.addWorksheet("교과별정렬");
   buildTeacherGridSheet(bySubjectWs, exam, {
-    titleSuffix: "교과별 정렬표",
+    titleSuffix: `교과별 정렬표${note}`,
     teachers: expandedTeachersBySubject(exam),
     subjectHeaderNote:
       "복수 교과 교사는 교과별로 한 행씩 반복 표시됩니다. 이 시트는 과목 정렬과 필터용입니다.",
   });
+  return wb;
+}
 
-  const buf = await wb.xlsx.writeBuffer();
+export async function exportTeacherGridWorkbook(
+  exam: Exam,
+  options?: { filenameSuffix?: string },
+) {
+  const buf = await buildTeacherGridWorkbook(exam).xlsx.writeBuffer();
   downloadBlob(
-    new Blob([buf], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    }),
+    new Blob([buf], { type: XLSX_MIME }),
     `${exam.name || "exam"}_${options?.filenameSuffix ?? "교사별감독표"}.xlsx`,
   );
+}
+
+/**
+ * 감독누계(일별) — 시험일마다 엑셀 1개. 그날의 파일에는 시험 첫날부터 그날까지의 감독 배정과
+ * 그 누계(횟수·곤란도·시험 기간 수업)만 담는다. 예) 화요일 파일 = 월요일 + 화요일.
+ */
+export function buildTeacherGridWorkbooksByDay(
+  exam: Exam,
+): Array<{ date: string; filename: string; workbook: ExcelJS.Workbook }> {
+  const days = examDays(exam);
+  return days.map((date) => {
+    const range =
+      date === days[0] ? `${dayFileLabel(date)} 누계` : `${dayFileLabel(days[0])} ~ ${dayFileLabel(date)} 누계`;
+    return {
+      date,
+      filename: `${exam.name || "exam"}_감독누계_${dayFileLabel(date)}.xlsx`,
+      workbook: buildTeacherGridWorkbook(examThroughDate(exam, date), { titleNote: range }),
+    };
+  });
+}
+
+export async function exportTeacherGridWorkbooksByDay(exam: Exam): Promise<{ count: number }> {
+  const built = buildTeacherGridWorkbooksByDay(exam);
+  if (built.length === 0) {
+    throw new Error("내보낼 시험 날짜가 없습니다. STEP 2 시험표와 STEP 8 감독 슬롯을 먼저 만들어 주세요.");
+  }
+  const files: Array<{ blob: Blob; filename: string }> = [];
+  for (const b of built) {
+    const buf = await b.workbook.xlsx.writeBuffer();
+    files.push({ blob: new Blob([buf], { type: XLSX_MIME }), filename: b.filename });
+  }
+  await downloadBlobsSequentially(files);
+  return { count: files.length };
 }

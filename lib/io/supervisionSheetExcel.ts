@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import type { DutySlot, Exam, Grade } from "@/lib/types";
 import { classNumbersForRoomId } from "@/lib/roomClassMap";
+import { dayFileLabel, downloadBlobsSequentially, examDays } from "@/lib/io/dayExport";
 import { downloadBlob, weekdayKo } from "@/lib/utils";
 
 /**
@@ -111,7 +112,11 @@ export type SupervisionSheetResult = {
   warnings: string[];
 };
 
-export function buildSupervisionSheetWorkbook(exam: Exam): SupervisionSheetResult {
+/** `options.dates`를 주면 그 날짜 시트만 만든다 (일별 내보내기). 없으면 모든 시험일. */
+export function buildSupervisionSheetWorkbook(
+  exam: Exam,
+  options?: { dates?: string[] },
+): SupervisionSheetResult {
   const wb = new ExcelJS.Workbook();
   wb.creator = "설화고 시험감독표";
   wb.created = new Date();
@@ -122,7 +127,7 @@ export function buildSupervisionSheetWorkbook(exam: Exam): SupervisionSheetResul
     warnings.push("양식에 맞는 고사실(예: 1-1, 2-3, 2-기술실)이 없어 감독표를 만들 수 없습니다.");
     return { workbook: wb, warnings };
   }
-  for (const date of examDates(exam)) {
+  for (const date of options?.dates ?? examDays(exam)) {
     buildDateSheet(wb, exam, date, columns, warnings);
   }
   return { workbook: wb, warnings };
@@ -142,11 +147,39 @@ export async function exportSupervisionSheetWorkbook(exam: Exam): Promise<{ warn
   return { warnings };
 }
 
-function examDates(exam: Exam): string[] {
-  const dates = new Set<string>();
-  for (const s of exam.dutySlots) dates.add(s.date);
-  for (const s of exam.examSlots) dates.add(s.date);
-  return Array.from(dates).filter(Boolean).sort();
+/**
+ * 감독시간표(일별) — 시험일마다 엑셀 1개(그날 시트 하나). 양식에 맞지 않는 항목은 warnings로 돌려준다.
+ * 시험일 수만큼 파일이 차례로 내려받아진다.
+ */
+export function buildSupervisionSheetWorkbooksByDay(
+  exam: Exam,
+): Array<{ date: string; filename: string; workbook: ExcelJS.Workbook; warnings: string[] }> {
+  return examDays(exam).map((date) => {
+    const { workbook, warnings } = buildSupervisionSheetWorkbook(exam, { dates: [date] });
+    return { date, filename: `${exam.name || "exam"}_감독시간표_${dayFileLabel(date)}.xlsx`, workbook, warnings };
+  });
+}
+
+export async function exportSupervisionSheetWorkbooksByDay(
+  exam: Exam,
+): Promise<{ count: number; warnings: string[] }> {
+  const built = buildSupervisionSheetWorkbooksByDay(exam);
+  if (built.length === 0) {
+    throw new Error("내보낼 시험 날짜가 없습니다. STEP 2 시험표와 STEP 8 감독 슬롯을 먼저 만들어 주세요.");
+  }
+  const files: Array<{ blob: Blob; filename: string }> = [];
+  const warnings = new Set<string>();
+  for (const b of built) {
+    if (b.workbook.worksheets.length === 0) throw new Error(b.warnings[0] ?? "감독표를 만들 수 없습니다.");
+    b.warnings.forEach((w) => warnings.add(w));
+    const buf = await b.workbook.xlsx.writeBuffer();
+    files.push({
+      blob: new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+      filename: b.filename,
+    });
+  }
+  await downloadBlobsSequentially(files);
+  return { count: files.length, warnings: [...warnings] };
 }
 
 function buildColumns(exam: Exam, warnings: string[]): GridColumn[] {
