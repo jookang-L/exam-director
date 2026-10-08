@@ -60,36 +60,40 @@ export default function ExportPage() {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">파일 내보내기</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Card>
+          <Card className="flex flex-col">
             <CardHeader>
               <CardTitle>감독시간표</CardTitle>
               <CardDescription>날짜별 시트 · 학교 감독표 양식</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="mt-auto">
               <Button onClick={exportSheet} className="w-full">
                 <FileSpreadsheet className="h-4 w-4" /> 감독표 양식 맞춰 내보내기
               </Button>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="flex flex-col">
             <CardHeader>
               <CardTitle>감독누계</CardTitle>
-              <CardDescription>교사별 감독 횟수·누계 (STEP 12 엑셀과 같은 파일)</CardDescription>
+              <CardDescription>
+                교사별 감독 횟수·누계
+                <br />
+                (STEP 12 엑셀과 같은 파일)
+              </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="mt-auto">
               <Button onClick={exportSupervisorSummaryExcel} className="w-full">
                 <FileSpreadsheet className="h-4 w-4" /> 감독누계 내보내기
               </Button>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="flex flex-col">
             <CardHeader>
               <CardTitle>JSON</CardTitle>
               <CardDescription>백업 · 다른 컴퓨터에서 불러오기</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="mt-auto">
               <Button onClick={exportJson} className="w-full">
                 <FileJson className="h-4 w-4" /> JSON 내보내기
               </Button>
