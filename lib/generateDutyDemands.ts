@@ -12,7 +12,7 @@ export const PERIOD1_SELF_STUDY_CLASSES: Record<Grade, number> = {
 /** 복도감독 O — 복도감독을 두는 교실 */
 export const HALL_DUTY_CLASSROOMS: Record<Grade, readonly number[]> = {
   1: [2, 5, 7, 11, 13],
-  2: [2, 4, 6, 9, 11],
+  2: [2, 5, 7, 11, 13],
   3: [3, 6, 8, 10, 12],
 };
 

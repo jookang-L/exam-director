@@ -145,7 +145,7 @@ const date = "2026-05-25";
   });
   exam.dutyDemands = syncDutyDemandsFromSchedule(exam);
 
-  for (const cls of [2, 4, 6, 9, 11]) {
+  for (const cls of [2, 5, 7, 11, 13]) {
     assert.equal(count(exam, date, 2, classNumberToRoomId(2, cls), "복도감독"), 1, `g2 hall ${cls}`);
     assert.equal(count(exam, date, 2, classNumberToRoomId(2, cls), "자습감독"), 0, `g2 self ${cls}`);
   }

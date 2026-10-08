@@ -11,7 +11,8 @@
     "test:exclude": "tsx scripts/exclude-allow-regression.ts",
     "test:lecturer": "tsx scripts/lecturer-priority-regression.ts",
     "test:final": "tsx scripts/final-check-regression.ts",
-    "test:swap": "tsx scripts/slot-swap-regression.ts"
+    "test:swap": "tsx scripts/slot-swap-regression.ts",
+    "test:sheet": "tsx scripts/supervision-sheet-regression.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "6.1.0",
